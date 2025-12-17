@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Booth Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+        
+        /* Login Styles */
+        .login-container { max-width: 400px; margin: 100px auto; padding: 30px; background: #1e1e1e; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        
+        /* Sidebar & Nav */
+        .sidebar-link { cursor: pointer; padding: 10px 15px; border-radius: 8px; margin-bottom: 5px; transition: 0.2s; color: #aaa; text-decoration: none; display: block; }
+        .sidebar-link:hover, .sidebar-link.active { background: #0d6efd; color: white; }
+        .sidebar-link i { margin-right: 10px; }
+        
+        .stat-card { background: #222; border: 1px solid #333; border-radius: 10px; padding: 20px; }
+        .stat-number { font-size: 2.5rem; font-weight: bold; color: #0d6efd; }
+
+        /* Modals */
+        .modal-content { background-color: #1e1e1e; color: white; border: 1px solid #333; }
+        .modal-header, .modal-footer { border-color: #333; }
+        .form-control, .form-select { background-color: #2b2b2b; border: 1px solid #444; color: white; }
+        .form-control:focus { background-color: #333; color: white; border-color: #0d6efd; box-shadow: none; }
+        .btn-close-white { filter: invert(1); }
+
+        /* Gallery Grid in View Modal */
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; max-height: 400px; overflow-y: auto; padding: 10px; background: #000; border-radius: 5px; }
+        .gallery-img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid #333; }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        .view-section { display: none; }
+        .view-section.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="loginView" class="container">
+        <div class="login-container text-center">
+            <h3 class="mb-4 text-primary">📸 Studio Admin</h3>
+            <div class="mb-3 text-start">
+                <label class="form-label">Email</label>
+                <input type="email" id="emailInput" class="form-control" placeholder="admin@studio.com">
+            </div>
+            <div class="mb-4 text-start">
+                <label class="form-label">Password</label>
+                <input type="password" id="passInput" class="form-control" placeholder="••••••••">
+            </div>
+            <button id="btnLogin" class="btn btn-primary w-100">Login</button>
+            <p id="loginError" class="text-danger mt-3 small"></p>
+        </div>
+    </div>
+
+    <div id="dashboardView" class="hidden">
+        <nav class="navbar navbar-dark bg-dark border-bottom border-secondary mb-4">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1"><i class="bi bi-camera-fill text-primary"></i> Smart Booth Admin</span>
+                <button id="btnLogout" class="btn btn-outline-danger btn-sm">Logout</button>
+            </div>
+        </nav>
+
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-2 mb-3">
+                    <div class="d-flex flex-column">
+                        <a onclick="switchView('home')" id="nav-home" class="sidebar-link active"><i class="bi bi-speedometer2"></i> Dashboard</a>
+                        <a onclick="switchView('clients')" id="nav-clients" class="sidebar-link"><i class="bi bi-people"></i> Clients</a>
+                    </div>
+                </div>
+
+                <div class="col-md-10">
+                    
+                    <div id="view-home" class="view-section active">
+                        <h3 class="mb-4">Dashboard Overview</h3>
+                        <div class="row g-4">
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <h6 class="text-muted">Total Active Clients</h6>
+                                    <div class="stat-number" id="totalClientsCount">0</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <h6 class="text-muted">System Status</h6>
+                                    <div class="text-success fs-4 mt-2"><i class="bi bi-check-circle"></i> Online</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <h6 class="text-muted">AI Model Status</h6>
+                                    <div id="dashboardModelStatus" class="text-warning fs-5 mt-2">Loading...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="view-clients" class="view-section">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h3>Client Management</h3>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addClientModal">
+                                <i class="bi bi-person-plus-fill"></i> Add Client & Photos
+                            </button>
+                        </div>
+                        
+                        <div class="card bg-dark border-secondary">
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-hover mb-0 align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Client Name</th>
+                                                <th>Event</th>
+                                                <th>Phone</th>
+                                                <th>Actions</th>
+                                                <th>Generated Link</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="clientsTableBody">
+                                            <tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addClientModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Client Event</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="modalCloseBtn"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addClientForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Event Date</label>
+                                <input type="date" id="clientDate" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Client Name</label>
+                                <input type="text" id="clientName" class="form-control" placeholder="e.g. John Doe" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Event Name</label>
+                                <input type="text" id="eventName" class="form-control" placeholder="e.g. Wedding" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" id="clientPhone" class="form-control" placeholder="+91..." required>
+                            </div>
+                        </div>
+
+                        <hr class="border-secondary">
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-primary"><i class="bi bi-images"></i> Upload Event Photos</label>
+                            <input type="file" id="clientPhotos" class="form-control" multiple accept="image/*" required>
+                            <div class="form-text text-muted">Photos will be saved strictly under this Client ID.</div>
+                        </div>
+
+                        <div id="uploadProgressBox" class="progress-overlay" style="display:none;">
+                            <h6 class="mb-2">Processing: <span id="currentUploadFile" class="text-info">Initializing...</span></h6>
+                            <div class="progress" style="height: 15px;">
+                                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 0%">0%</div>
+                            </div>
+                            <div id="uploadLogs" class="mt-2 small text-muted font-monospace" style="max-height: 60px; overflow-y: auto;"></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveClient" onclick="saveClient()">
+                        <i class="bi bi-cloud-upload"></i> Create & Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="viewGalleryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Client Gallery Preview</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Showing photos only for ID: <span id="viewClientId" class="text-info font-monospace"></span></p>
+                    <div id="galleryGrid" class="gallery-grid">
+                        </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="addMorePhotosInput" multiple accept="image/*" class="d-none">
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5jaPVkCwxXiMYhSn0uuW9QSMc-B5C9YY",
+            authDomain: "mjsmartapps.firebaseapp.com",
+            databaseURL: "https://mjsmartapps-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "mjsmartapps",
+            storageBucket: "mjsmartapps.firebasestorage.app",
+            messagingSenderId: "1033240518010",
+            appId: "1:1033240518010:web:930921011dda1bd56e0ac3",
+            measurementId: "G-959VLQSHH2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const storage = getStorage(app);
+        const auth = getAuth(app);
+
+        // --- GLOBAL UI HELPERS ---
+        let activeAddClientId = null;
+        let viewGalleryModalInstance;
+
+        window.switchView = (viewName) => {
+            document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('active'));
+            document.getElementById(`nav-${viewName}`).classList.add('active');
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${viewName}`).classList.add('active');
+        };
+
+        // --- AUTHENTICATION ---
+        const loginView = document.getElementById('loginView');
+        const dashboardView = document.getElementById('dashboardView');
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                loginView.classList.add('hidden');
+                dashboardView.classList.remove('hidden');
+                initClientsListener(); // Load data
+            } else {
+                dashboardView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('btnLogin').addEventListener('click', () => {
+            const email = document.getElementById('emailInput').value;
+            const pass = document.getElementById('passInput').value;
+            signInWithEmailAndPassword(auth, email, pass).catch(err => document.getElementById('loginError').textContent = err.message);
+        });
+        document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
+
+        // --- AI INITIALIZATION ---
+        Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
+        ]).then(() => {
+            const status = document.getElementById('dashboardModelStatus');
+            status.textContent = "Active";
+            status.classList.replace('text-warning', 'text-success');
+        });
+
+        // --- CLIENTS TABLE LOGIC ---
+        function initClientsListener() {
+            const clientsRef = ref(db, 'clients');
+            onValue(clientsRef, (snapshot) => {
+                const tbody = document.getElementById('clientsTableBody');
+                tbody.innerHTML = '';
+                
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    document.getElementById('totalClientsCount').innerText = Object.keys(data).length;
+
+                    Object.entries(data).forEach(([key, client]) => {
+                        // Generate Unique Link
+                        const baseUrl = window.location.href.replace('admin.html', 'index.html').split('#')[0];
+                        const shareLink = `${baseUrl}?eventId=${key}`;
+
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${client.date}</td>
+                            <td>${client.name}</td>
+                            <td>${client.eventName}</td>
+                            <td>${client.phone}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-info" onclick="viewClientGallery('${key}')" title="View Photos">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success" onclick="triggerAddMore('${key}')" title="Add More Photos">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="input-group input-group-sm" style="width: 200px;">
+                                    <input type="text" class="form-control bg-dark text-muted border-secondary" value="${shareLink}" readonly>
+                                    <button class="btn btn-outline-primary" onclick="copyToClipboard('${shareLink}')"><i class="bi bi-copy"></i></button>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    document.getElementById('totalClientsCount').innerText = 0;
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No clients found.</td></tr>';
+                }
+            });
+        }
+
+        // --- NEW: VIEW GALLERY LOGIC ---
+        window.viewClientGallery = (clientId) => {
+            const modalEl = document.getElementById('viewGalleryModal');
+            const galleryGrid = document.getElementById('galleryGrid');
+            document.getElementById('viewClientId').innerText = clientId;
+            galleryGrid.innerHTML = '<p class="text-white">Loading photos...</p>';
+            
+            viewGalleryModalInstance = new bootstrap.Modal(modalEl);
+            viewGalleryModalInstance.show();
+
+            // Fetch only this client's photos
+            const photosRef = ref(db, `gallery_photos/${clientId}`);
+            get(photosRef).then((snapshot) => {
+                galleryGrid.innerHTML = '';
+                if(snapshot.exists()) {
+                    const photos = snapshot.val();
+                    Object.values(photos).forEach(photo => {
+                        const img = document.createElement('img');
+                        img.src = photo.url;
+                        img.className = 'gallery-img';
+                        galleryGrid.appendChild(img);
+                    });
+                } else {
+                    galleryGrid.innerHTML = '<p class="text-muted">No photos uploaded for this client yet.</p>';
+                }
+            });
+        };
+
+        // --- SAVE CLIENT & UPLOAD LOGIC ---
+        window.saveClient = async () => {
+            const date = document.getElementById('clientDate').value;
+            const name = document.getElementById('clientName').value;
+            const eventName = document.getElementById('eventName').value;
+            const phone = document.getElementById('clientPhone').value;
+            const fileInput = document.getElementById('clientPhotos');
+            
+            if(!date || !name || !eventName || !phone || fileInput.files.length === 0) {
+                alert("Please fill all fields and select photos.");
+                return;
+            }
+
+            // Lock UI
+            const btnSave = document.getElementById('btnSaveClient');
+            document.getElementById('uploadProgressBox').style.display = 'block';
+            btnSave.disabled = true;
+            btnSave.innerText = "Creating...";
+
+            try {
+                // 1. Create Client
+                const newClientRef = push(ref(db, 'clients'));
+                const clientId = newClientRef.key;
+                
+                await set(newClientRef, {
+                    date, name, eventName, phone,
+                    createdAt: Date.now()
+                });
+
+                // 2. Upload Photos (Strictly to client ID folder)
+                await processAndUploadFiles(fileInput.files, clientId, 'uploadProgressBar', 'currentUploadFile', 'uploadLogs');
+
+                alert("Success! Client created and photos uploaded.");
+                document.getElementById('addClientForm').reset();
+                document.getElementById('uploadProgressBox').style.display = 'none';
+                
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addClientModal'));
+                modal.hide();
+
+            } catch (error) {
+                alert("Error: " + error.message);
+            } finally {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-cloud-upload"></i> Create & Upload';
+            }
+        };
+
+        // --- SHARED UPLOAD FUNCTION (Strict Isolation) ---
+        async function processAndUploadFiles(files, clientId, progBarId, statusId, logId) {
+            const progressBar = document.getElementById(progBarId);
+            const statusLabel = document.getElementById(statusId);
+            const logDiv = document.getElementById(logId);
+            const fileArray = Array.from(files);
+            
+            let processedCount = 0;
+
+            for (const file of fileArray) {
+                statusLabel.innerText = file.name;
+                try {
+                    const img = await faceapi.bufferToImage(file);
+                    const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+
+                    if (detections.length > 0) {
+                        // Upload to Storage: gallery_photos / CLIENT_ID / file
+                        const storageRef = sRef(storage, `gallery_photos/${clientId}/${Date.now()}_${file.name}`);
+                        await uploadBytes(storageRef, file);
+                        const downloadURL = await getDownloadURL(storageRef);
+
+                        // Upload to Database: gallery_photos / CLIENT_ID / record
+                        const descriptors = detections.map(d => Array.from(d.descriptor));
+                        await push(ref(db, `gallery_photos/${clientId}`), {
+                            url: downloadURL,
+                            descriptors: descriptors,
+                            uploadedAt: Date.now()
+                        });
+                        logDiv.innerHTML += `<div class="text-success">Uploaded ${file.name}</div>`;
+                    } else {
+                        logDiv.innerHTML += `<div class="text-warning">Skip ${file.name} (No Face)</div>`;
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+                processedCount++;
+                const percent = Math.round((processedCount / fileArray.length) * 100);
+                progressBar.style.width = `${percent}%`;
+            }
+        }
+
+        // --- ADD MORE PHOTOS ---
+        window.triggerAddMore = (clientId) => {
+            activeAddClientId = clientId;
+            document.getElementById('addMorePhotosInput').click();
+        };
+
+        document.getElementById('addMorePhotosInput').addEventListener('change', async (e) => {
+            if(e.target.files.length > 0 && activeAddClientId) {
+                if(confirm(`Add ${e.target.files.length} photos to this client?`)) {
+                    alert("Uploading in background...");
+                    // Reusing logic but without visual progress bar for simplicity in this quick action
+                    let count = 0;
+                    for(const file of Array.from(e.target.files)) {
+                        const img = await faceapi.bufferToImage(file);
+                        const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+                        if(detections.length > 0) {
+                            const storageRef = sRef(storage, `gallery_photos/${activeAddClientId}/${Date.now()}_${file.name}`);
+                            await uploadBytes(storageRef, file);
+                            const url = await getDownloadURL(storageRef);
+                            const descriptors = detections.map(d => Array.from(d.descriptor));
+                            await push(ref(db, `gallery_photos/${activeAddClientId}`), { url, descriptors });
+                        }
+                    }
+                    alert("Upload Complete!");
+                    e.target.value = '';
+                }
+            }
+        });
+
+        window.copyToClipboard = (text) => navigator.clipboard.writeText(text).then(() => alert("Link Copied!"));
+
+    </script>
+</body>
+</html>
