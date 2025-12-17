@@ -10,15 +10,12 @@
         body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
         .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 60px 0; text-align: center; }
         
-        /* Preview & Camera Styles */
         .preview-box { width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .camera-wrapper { max-width: 500px; margin: 0 auto; display: none; position: relative; }
         video { width: 100%; border-radius: 10px; transform: scaleX(-1); border: 3px solid #fff; }
         
-        /* Results */
         .photo-card img { height: 250px; object-fit: cover; width: 100%; transition: 0.3s; }
         .photo-card:hover img { transform: scale(1.02); }
-        
         .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
     </style>
 </head>
@@ -39,14 +36,14 @@
         <div class="hero">
             <div class="container">
                 <h1 id="eventTitle">Event Gallery</h1>
-                <p class="opacity-75" id="clientNameDisplay">Find your photos instantly using AI</p>
+                <p class="opacity-75" id="clientNameDisplay">Find your photos instantly</p>
                 
-                <div class="mt-4 d-flex justify-content-center gap-3">
+                <div id="heroButtons" class="mt-4 d-flex justify-content-center gap-3 flex-wrap">
                     <button class="btn btn-light btn-lg px-4" onclick="document.getElementById('selfieInput').click()">
-                        <i class="bi bi-upload"></i> Upload Selfie
+                        <i class="bi bi-upload me-2"></i>Upload Selfie
                     </button>
                     <button class="btn btn-outline-light btn-lg px-4" id="startCamBtn">
-                        <i class="bi bi-camera"></i> Camera
+                        <i class="bi bi-camera me-2"></i>Camera
                     </button>
                     <input type="file" id="selfieInput" accept="image/*" class="d-none">
                 </div>
@@ -54,14 +51,14 @@
                 <div class="camera-wrapper mt-4" id="cameraContainer">
                     <video id="webcam" autoplay muted playsinline></video>
                     <div class="mt-2">
-                        <button class="btn btn-primary w-100 py-2" id="snapBtn"><i class="bi bi-person-bounding-box"></i> Capture & Search</button>
+                        <button class="btn btn-primary w-100 py-2" id="snapBtn">Capture & Search</button>
                         <button class="btn btn-sm btn-link text-white mt-1" id="closeCamBtn">Cancel</button>
                     </div>
                 </div>
                 
                 <div id="searchingMsg" class="mt-3 d-none">
                     <div class="spinner-border text-light spinner-border-sm" role="status"></div>
-                    <span class="ms-2">Scanning event photos...</span>
+                    <span class="ms-2" id="loadingText">Scanning event photos...</span>
                 </div>
             </div>
         </div>
@@ -70,11 +67,10 @@
             <div class="text-center mb-5 d-none" id="referenceSection">
                 <img id="userImg" class="preview-box mb-2">
                 <h5 id="matchCount" class="text-success fw-bold mt-2"></h5>
-                <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">Try Another Photo</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">Reset</button>
             </div>
 
-            <div class="row g-4" id="resultsGrid">
-                </div>
+            <div class="row g-4" id="resultsGrid"></div>
         </div>
     </div>
 
@@ -97,70 +93,81 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // --- 1. GET URL PARAMETERS ---
         const urlParams = new URLSearchParams(window.location.search);
         const eventId = urlParams.get('eventId');
+        const viewMode = urlParams.get('view');
         
-        // DOM Elements
-        const loadingScreen = document.getElementById('loadingScreen');
-        const errorScreen = document.getElementById('errorScreen');
-        const appContent = document.getElementById('appContent');
-        const userImg = document.getElementById('userImg');
-        const resultsGrid = document.getElementById('resultsGrid');
-        
-        // --- 2. INITIALIZATION FLOW ---
         if (!eventId) {
-            loadingScreen.style.display = 'none';
-            errorScreen.classList.remove('d-none');
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('errorScreen').classList.remove('d-none');
         } else {
             initializeSystem();
         }
 
         async function initializeSystem() {
             try {
-                // A. Load AI Models
-                await Promise.all([
-                    faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
-                    faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
-                    faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
-                ]);
-
-                // B. Fetch Event Details (Name, etc.)
-                const clientRef = ref(db, `clients/${eventId}`);
-                const clientSnap = await get(clientRef);
-                
-                if (!clientSnap.exists()) {
-                    throw new Error("Event ID not found in database.");
+                // Load AI only if NOT in 'view all' mode
+                if (viewMode !== 'all') {
+                    await Promise.all([
+                        faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+                        faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+                        faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
+                    ]);
                 }
 
-                const clientData = clientSnap.val();
-                document.getElementById('eventTitle').innerText = clientData.eventName || "Event Gallery";
-                document.getElementById('clientNameDisplay').innerText = `Welcome to ${clientData.name}'s Gallery`;
+                const clientSnap = await get(ref(db, `clients/${eventId}`));
+                if (!clientSnap.exists()) throw new Error("Event not found");
 
-                // C. Show App
-                loadingScreen.style.display = 'none';
-                appContent.classList.remove('d-none');
+                const data = clientSnap.val();
+                document.getElementById('eventTitle').innerText = data.eventName || "Gallery";
+                document.getElementById('clientNameDisplay').innerText = data.name;
+
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('appContent').classList.remove('d-none');
+
+                if (viewMode === 'all') {
+                    window.loadFullGallery();
+                }
 
             } catch (error) {
                 console.error(error);
-                loadingScreen.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+                document.getElementById('loadingScreen').innerHTML = `<p class="text-danger">${error.message}</p>`;
             }
         }
 
-        // --- 3. CAMERA & SEARCH LOGIC ---
+        window.loadFullGallery = async () => {
+            document.getElementById('heroButtons').classList.add('d-none');
+            const msg = document.getElementById('searchingMsg');
+            msg.classList.remove('d-none');
+            document.getElementById('loadingText').innerText = "Loading all photos...";
+            
+            const grid = document.getElementById('resultsGrid');
+            grid.innerHTML = '';
+
+            try {
+                const snap = await get(ref(db, `gallery_photos/${eventId}`));
+                if(snap.exists()) {
+                    Object.values(snap.val()).forEach(p => renderPhoto(p));
+                    msg.classList.add('d-none');
+                } else {
+                    msg.innerHTML = '<span class="text-warning">No photos found.</span>';
+                }
+            } catch(e) { console.error(e); }
+        };
+
         let stream = null;
-        const cameraContainer = document.getElementById('cameraContainer');
         const video = document.getElementById('webcam');
 
         document.getElementById('startCamBtn').addEventListener('click', async () => {
-            cameraContainer.style.display = 'block';
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
-            } catch (err) { alert("Camera access denied."); }
+            document.getElementById('cameraContainer').style.display = 'block';
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
         });
 
-        document.getElementById('closeCamBtn').addEventListener('click', stopCamera);
+        document.getElementById('closeCamBtn').addEventListener('click', () => {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            document.getElementById('cameraContainer').style.display = 'none';
+        });
 
         document.getElementById('snapBtn').addEventListener('click', () => {
             const canvas = document.createElement('canvas');
@@ -170,92 +177,89 @@
             ctx.translate(canvas.width, 0);
             ctx.scale(-1, 1);
             ctx.drawImage(video, 0, 0);
-            stopCamera();
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            document.getElementById('cameraContainer').style.display = 'none';
             processSearch(canvas.toDataURL('image/png'));
         });
-
-        function stopCamera() {
-            if (stream) stream.getTracks().forEach(t => t.stop());
-            cameraContainer.style.display = 'none';
-        }
 
         document.getElementById('selfieInput').addEventListener('change', (e) => {
             if (e.target.files[0]) processSearch(URL.createObjectURL(e.target.files[0]));
         });
 
-        // --- 4. CORE SEARCH LOGIC (SCOPED TO EVENT ID) ---
         async function processSearch(imageUrl) {
-            // UI Updates
-            userImg.src = imageUrl;
+            document.getElementById('userImg').src = imageUrl;
             document.getElementById('referenceSection').classList.remove('d-none');
             document.getElementById('searchingMsg').classList.remove('d-none');
-            resultsGrid.innerHTML = '';
+            document.getElementById('heroButtons').classList.add('d-none');
+            document.getElementById('resultsGrid').innerHTML = '';
             
             try {
-                // A. Detect Face
-                await new Promise(res => userImg.onload = res);
-                const detection = await faceapi.detectSingleFace(userImg).withFaceLandmarks().withFaceDescriptor();
+                const img = await faceapi.fetchImage(imageUrl);
+                const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
 
                 if (!detection) {
-                    alert("No face detected. Please try again.");
+                    alert("No face detected.");
                     document.getElementById('searchingMsg').classList.add('d-none');
+                    document.getElementById('heroButtons').classList.remove('d-none');
                     return;
                 }
 
-                // B. Fetch ONLY photos for this Event ID
-                const photosRef = ref(db, `gallery_photos/${eventId}`);
-                const snapshot = await get(photosRef);
+                const snap = await get(ref(db, `gallery_photos/${eventId}`));
+                let count = 0;
 
-                if (!snapshot.exists()) {
-                    document.getElementById('matchCount').innerText = "No photos uploaded for this event yet.";
-                    document.getElementById('searchingMsg').classList.add('d-none');
-                    return;
-                }
-
-                // C. Compare
-                const eventPhotos = snapshot.val();
-                let matchCount = 0;
-                
-                Object.values(eventPhotos).forEach(photo => {
-                    if (!photo.descriptors) return;
-                    
-                    // Check match
-                    const isMatch = photo.descriptors.some(d => {
-                        return faceapi.euclideanDistance(detection.descriptor, new Float32Array(d)) < 0.5; // Threshold
+                if (snap.exists()) {
+                    Object.values(snap.val()).forEach(photo => {
+                        if (photo.descriptors && photo.descriptors.some(d => faceapi.euclideanDistance(detection.descriptor, new Float32Array(d)) < 0.5)) {
+                            renderPhoto(photo);
+                            count++;
+                        }
                     });
-
-                    if (isMatch) {
-                        renderPhoto(photo);
-                        matchCount++;
-                    }
-                });
-
-                document.getElementById('matchCount').innerText = matchCount > 0 
-                    ? `Found ${matchCount} matching photos!` 
-                    : "No matches found in this event.";
-
-            } catch (err) {
-                console.error(err);
-                alert("Error processing search.");
-            } finally {
-                document.getElementById('searchingMsg').classList.add('d-none');
-            }
+                }
+                document.getElementById('matchCount').innerText = count > 0 ? `Found ${count} photos!` : "No matches found.";
+            } catch (err) { console.error(err); } 
+            finally { document.getElementById('searchingMsg').classList.add('d-none'); }
         }
+
+        // --- NEW DOWNLOAD FUNCTION LOGIC ---
+        window.forceDownload = async (url) => {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Network response was not ok");
+                
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                a.download = `photo_${Date.now()}.jpg`;
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                window.URL.revokeObjectURL(blobUrl);
+                document.body.removeChild(a);
+            } catch (error) {
+                console.error("Download failed:", error);
+                // Fallback: Open in new tab if programmatic download fails
+                window.open(url, '_blank');
+            }
+        };
 
         function renderPhoto(photo) {
             const div = document.createElement('div');
             div.className = 'col-6 col-md-4 col-lg-3';
+            // UPDATED: Using a button with onclick calling forceDownload instead of direct href
             div.innerHTML = `
                 <div class="card photo-card shadow-sm h-100 border-0">
                     <img src="${photo.url}" class="card-img-top rounded">
                     <div class="card-body p-2 text-center">
-                        <a href="${photo.url}" class="btn btn-sm btn-dark w-100" download target="_blank">
+                        <button onclick="forceDownload('${photo.url}')" class="btn btn-sm btn-dark w-100">
                             <i class="bi bi-download"></i> Download
-                        </a>
+                        </button>
                     </div>
-                </div>
-            `;
-            resultsGrid.appendChild(div);
+                </div>`;
+            document.getElementById('resultsGrid').appendChild(div);
         }
     </script>
 </body>
