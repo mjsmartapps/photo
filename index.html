@@ -134,6 +134,13 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
+        const DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({
+            inputSize: 512,
+            scoreThreshold: 0.5
+        });
+        const FACE_DISTANCE_THRESHOLD = 0.55;
+
+
         const urlParams = new URLSearchParams(window.location.search);
         const eventId = urlParams.get('eventId');
         const viewMode = urlParams.get('view');
@@ -174,7 +181,7 @@
             try {
                 if (viewMode !== 'all') {
                     await Promise.all([
-                        faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+                        faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
                         faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
                         faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
                     ]);
@@ -312,8 +319,14 @@
             document.getElementById('resultsGrid').innerHTML = '';
             
             try {
-                const img = await faceapi.fetchImage(imageUrl);
-                const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+                const img = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = imageUrl;
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+        });
+                const detection = await faceapi.detectSingleFace(img, DETECTOR_OPTIONS).withFaceLandmarks().withFaceDescriptor();
 
                 if (!detection) {
                     showToast("No face detected. Please try again.", "danger");
@@ -327,7 +340,7 @@
 
                 if (snap.exists()) {
                     Object.values(snap.val()).forEach(photo => {
-                        if (photo.descriptors && photo.descriptors.some(d => faceapi.euclideanDistance(detection.descriptor, new Float32Array(d)) < 0.5)) {
+                        if (photo.descriptors && photo.descriptors.some(d => faceapi.euclideanDistance(detection.descriptor, new Float32Array(d)) < FACE_DISTANCE_THRESHOLD)) {
                             renderPhoto(photo);
                             count++;
                         }
