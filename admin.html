@@ -579,8 +579,13 @@
         });
         document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
 
+        const DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({
+            inputSize: 512,
+            scoreThreshold: 0.5
+        });
+
         Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+            faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
             faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
             faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
         ]).then(() => document.getElementById('dashboardModelStatus').innerHTML = '<span class="text-success">Active</span>');
@@ -646,7 +651,7 @@
                 statusLabel.innerText = `Processing: ${file.name}`;
                 try {
                     const img = await faceapi.bufferToImage(file);
-                    const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+                    const detections = await faceapi.detectAllFaces(img, DETECTOR_OPTIONS).withFaceLandmarks().withFaceDescriptors();
                     const descriptors = detections.length > 0 ? detections.map(d => Array.from(d.descriptor)) : [];
                     
                     const storageRef = sRef(storage, `gallery_photos/${clientId}/${Date.now()}_${file.name}`);
