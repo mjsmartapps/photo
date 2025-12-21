@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find My Photos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        /* Global Security & UI Styles */
+        body { 
+            background-color: #f0f2f5; 
+            font-family: 'Segoe UI', sans-serif; 
+            min-height: 100vh;
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+            user-select: none; /* Standard syntax */
+        }
+        
+        /* Prevent dragging images */
+        img { 
+            -webkit-user-drag: none; 
+            -khtml-user-drag: none; 
+            -moz-user-drag: none; 
+            -o-user-drag: none; 
+            pointer-events: auto; 
+        }
+
+        .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 60px 0; text-align: center; }
+        
+        .preview-box { width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        
+        /* Camera Wrapper Styles */
+        .camera-wrapper { max-width: 500px; margin: 0 auto; display: none; position: relative; }
+        
+        /* Video Element Styles */
+        video { width: 100%; border-radius: 10px; border: 3px solid #fff; background: black; }
+        
+        .video-mirror { transform: scaleX(-1); } 
+        .video-normal { transform: scaleX(1); }
+        
+        .switch-cam-btn {
+            position: absolute; top: 15px; right: 15px; width: 45px; height: 45px;
+            border-radius: 50%; background: rgba(255, 255, 255, 0.8); border: none; z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3); transition: transform 0.2s;
+        }
+        .switch-cam-btn:active { transform: scale(0.95); }
+        .switch-cam-btn i { font-size: 1.5rem; color: #333; }
+
+        /* Photo Card */
+        .photo-card { transition: all 0.2s; cursor: pointer; position: relative; overflow: hidden; }
+        .photo-card img { height: 250px; object-fit: cover; width: 100%; transition: 0.3s; }
+        .photo-card:hover img { transform: scale(1.02); }
+        
+        /* Delete Mode Styles */
+        .photo-card.selected-for-delete { border: 4px solid #dc3545; }
+        .photo-card.selected-for-delete img { opacity: 0.7; }
+        .photo-card.selected-for-delete::after {
+            content: "\F62A"; font-family: "bootstrap-icons";
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; color: #dc3545; font-weight: bold;
+            text-shadow: 0 2px 4px rgba(255,255,255,0.8);
+        }
+
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
+        
+        /* Lock Screen Style */
+        .lock-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0f172a; color: white; z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 20px;
+        }
+
+        .toast-container { z-index: 10000; }
+        .toast { background: white; color: #333; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .toast-header { background: #f8f9fa; color: #333; border-bottom: 1px solid #eee; }
+
+        /* Floating Delete Action Bar */
+        .delete-action-bar {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: white; border-top: 1px solid #ddd;
+            padding: 15px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 2000; transform: translateY(100%); transition: transform 0.3s ease-in-out;
+        }
+        .delete-action-bar.active { transform: translateY(0); }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" id="toastContainer"></div>
+
+    <div id="loadingScreen" class="loading-overlay">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-3">Loading Event...</p>
+    </div>
+
+    <div id="errorScreen" class="container text-center mt-5 d-none">
+        <i class="bi bi-exclamation-triangle display-1 text-warning"></i>
+        <h3 class="mt-3">Event Not Found</h3>
+        <p class="text-muted">Please use the specific link or QR code provided by your photographer.</p>
+    </div>
+
+    <div id="lockScreen" class="lock-screen d-none">
+        <div class="mb-4">
+            <span class="bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 p-4 rounded-circle d-inline-block">
+                <i class="bi bi-shield-lock-fill display-1"></i>
+            </span>
+        </div>
+        <h2 class="fw-bold mb-3">Service Suspended</h2>
+        <p class="text-secondary mb-4 fs-5">This gallery is currently unavailable.</p>
+        
+        <div class="alert alert-danger bg-opacity-10 border-danger d-inline-block text-start" style="max-width: 400px;">
+            <div class="d-flex">
+                <i class="bi bi-exclamation-circle-fill fs-4 me-3"></i>
+                <div>
+                    <strong>Action Required:</strong><br>
+                    Please contact studio or Pay Month due.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="appContent" class="d-none">
+        <div class="hero">
+            <div class="container">
+                <h1 id="eventTitle">Event Gallery</h1>
+                <p class="opacity-75" id="clientNameDisplay">Find your photos instantly</p>
+                
+                <div id="heroButtons" class="mt-4 d-flex justify-content-center gap-3 flex-wrap">
+                    <button class="btn btn-light btn-lg px-4" onclick="document.getElementById('selfieInput').click()">
+                        <i class="bi bi-upload me-2"></i>Upload Selfie
+                    </button>
+                    <button class="btn btn-outline-light btn-lg px-4" id="startCamBtn">
+                        <i class="bi bi-camera me-2"></i>Camera
+                    </button>
+                    <input type="file" id="selfieInput" accept="image/*" class="d-none">
+                </div>
+                
+                <div id="deleteModeHeader" class="mt-4 d-none">
+                    <div class="alert alert-danger bg-danger bg-opacity-25 border-danger text-white d-inline-block">
+                        <i class="bi bi-trash-fill me-2"></i>Select photos you want to remove
+                    </div>
+                </div>
+
+                <div class="camera-wrapper mt-4" id="cameraContainer">
+                    <button id="switchCamBtn" class="switch-cam-btn" title="Switch Camera">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </button>
+
+                    <video id="webcam" autoplay muted playsinline></video>
+                    
+                    <div class="mt-2">
+                        <button class="btn btn-primary w-100 py-2" id="snapBtn">Capture & Search</button>
+                        <button class="btn btn-sm btn-link text-white mt-1" id="closeCamBtn">Cancel</button>
+                    </div>
+                </div>
+                
+                <div id="searchingMsg" class="mt-3 d-none">
+                    <div class="spinner-border text-light spinner-border-sm" role="status"></div>
+                    <span class="ms-2" id="loadingText">Scanning event photos...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="container py-5">
+            <div class="text-center mb-5 d-none" id="referenceSection">
+                <img id="userImg" class="preview-box mb-2">
+                <h5 id="matchCount" class="text-success fw-bold mt-2"></h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">Reset</button>
+            </div>
+
+            <div class="row g-4" id="resultsGrid"></div>
+            
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+
+    <div id="deleteActionBar" class="delete-action-bar">
+        <div>
+            <span class="fw-bold text-danger"><span id="selectedCount">0</span> Photos Selected</span>
+            <p class="small text-muted m-0">These will be flagged for removal.</p>
+        </div>
+        <button id="btnSubmitDelete" class="btn btn-danger" onclick="submitDeletionRequest()">
+            Submit Request
+        </button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, get, runTransaction, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5jaPVkCwxXiMYhSn0uuW9QSMc-B5C9YY",
+            authDomain: "mjsmartapps.firebaseapp.com",
+            databaseURL: "https://mjsmartapps-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "mjsmartapps",
+            storageBucket: "mjsmartapps.firebasestorage.app",
+            messagingSenderId: "1033240518010",
+            appId: "1:1033240518010:web:930921011dda1bd56e0ac3",
+            measurementId: "G-959VLQSHH2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('eventId');
+        const viewMode = urlParams.get('view'); // 'all' or 'delete'
+
+        let deleteSelection = new Set();
+
+        // *** SECURITY: BLOCK SHORTCUTS & DRAGGING ***
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        document.addEventListener('keydown', event => {
+            if (event.ctrlKey && (event.key === 's' || event.key === 'p' || event.key === 'u')) {
+                event.preventDefault();
+            }
+        });
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer');
+            let headerClass = type === 'success' ? 'bg-success text-white' : type === 'danger' ? 'bg-danger text-white' : 'bg-primary text-white';
+            let icon = type === 'success' ? 'bi-check-circle-fill' : type === 'danger' ? 'bi-exclamation-circle-fill' : 'bi-info-circle-fill';
+            
+            const toastId = 'toast_' + Date.now();
+            const toastHtml = `
+                <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header ${headerClass}">
+                        <i class="bi ${icon} me-2"></i>
+                        <strong class="me-auto">Notification</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement, { delay: 4000 });
+            toast.show();
+            toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
+        }
+        
+        function updateStat(id, type) {
+            // Stats logic only runs in normal view, not delete view
+            if (viewMode === 'delete') return;
+
+            const clientRef = ref(db, `clients/${id}`);
+            runTransaction(clientRef, (client) => {
+                if (client) {
+                    if (type === 'view') {
+                        client.totalViews = (client.totalViews || 0) + 1;
+                    } else if (type === 'download') {
+                        client.totalDownloads = (client.totalDownloads || 0) + 1;
+                    }
+                }
+                return client;
+            }).catch(err => console.error("Stats Error:", err));
+        }
+
+        if (!eventId) {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('errorScreen').classList.remove('d-none');
+        } else {
+            initializeSystem();
+        }
+
+        async function initializeSystem() {
+            try {
+                // Fetch client data
+                const clientSnap = await get(ref(db, `clients/${eventId}`));
+                
+                if (!clientSnap.exists()) {
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    document.getElementById('errorScreen').classList.remove('d-none');
+                    return;
+                }
+
+                const data = clientSnap.val();
+
+                // *** SECURITY CHECK: IS LOCKED? ***
+                if (data.isLocked === true) {
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    document.getElementById('lockScreen').classList.remove('d-none');
+                    return; 
+                }
+
+                // Load AI only if needed (not in all/delete view)
+                if (viewMode !== 'all' && viewMode !== 'delete') {
+                    await Promise.all([
+                        faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+                        faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+                        faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
+                    ]);
+                }
+
+                // Render UI Info
+                document.getElementById('eventTitle').innerText = data.eventName || "Gallery";
+                document.getElementById('clientNameDisplay').innerText = data.name;
+
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('appContent').classList.remove('d-none');
+
+                // *** VIEW MODE HANDLING ***
+                if (viewMode === 'delete') {
+                    // Delete View Mode: Hide Search, Show Full Gallery with Selection UI
+                    document.getElementById('heroButtons').classList.add('d-none');
+                    document.getElementById('deleteModeHeader').classList.remove('d-none');
+                    document.getElementById('deleteActionBar').classList.add('active');
+                    window.loadFullGallery();
+                } else if (viewMode === 'all') {
+                    // Full Gallery Mode: Hide Search, Show Downloads
+                    updateStat(eventId, 'view');
+                    window.loadFullGallery();
+                } else {
+                    // Standard Search Mode
+                    updateStat(eventId, 'view');
+                }
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('loadingScreen').innerHTML = `<p class="text-danger">${error.message}</p>`;
+            }
+        }
+
+        window.loadFullGallery = async () => {
+            document.getElementById('heroButtons').classList.add('d-none');
+            const msg = document.getElementById('searchingMsg');
+            msg.classList.remove('d-none');
+            document.getElementById('loadingText').innerText = viewMode === 'delete' ? "Loading photos for review..." : "Loading all photos...";
+            
+            const grid = document.getElementById('resultsGrid');
+            grid.innerHTML = '';
+
+            try {
+                const snap = await get(ref(db, `gallery_photos/${eventId}`));
+                if(snap.exists()) {
+                    Object.values(snap.val()).forEach(p => renderPhoto(p));
+                    msg.classList.add('d-none');
+                } else {
+                    msg.innerHTML = '<span class="text-warning">No photos found.</span>';
+                }
+            } catch(e) { console.error(e); }
+        };
+
+        // *** CAMERA LOGIC (Only available in standard mode) ***
+        let stream = null;
+        let currentFacingMode = 'user'; 
+        const video = document.getElementById('webcam');
+
+        async function startCameraStream() {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+
+            try {
+                const constraints = { video: { facingMode: currentFacingMode } };
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+
+                video.classList.remove('video-mirror', 'video-normal');
+                if (currentFacingMode === 'user') {
+                    video.classList.add('video-mirror');
+                } else {
+                    video.classList.add('video-normal');
+                }
+            } catch (err) {
+                console.error("Camera Error:", err);
+                showToast("Unable to access camera. Check permissions.", "danger");
+            }
+        }
+
+        document.getElementById('startCamBtn').addEventListener('click', async () => {
+            document.getElementById('cameraContainer').style.display = 'block';
+            await startCameraStream();
+        });
+
+        document.getElementById('switchCamBtn').addEventListener('click', async () => {
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            await startCameraStream();
+        });
+
+        document.getElementById('closeCamBtn').addEventListener('click', () => {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            document.getElementById('cameraContainer').style.display = 'none';
+        });
+
+        document.getElementById('snapBtn').addEventListener('click', () => {
+            if (!stream) return;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            if (currentFacingMode === 'user') {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+            ctx.drawImage(video, 0, 0);
+            
+            stream.getTracks().forEach(t => t.stop());
+            document.getElementById('cameraContainer').style.display = 'none';
+            processSearch(canvas.toDataURL('image/png'));
+        });
+
+        document.getElementById('selfieInput').addEventListener('change', (e) => {
+            if (e.target.files[0]) processSearch(URL.createObjectURL(e.target.files[0]));
+        });
+
+        async function processSearch(imageUrl) {
+            document.getElementById('userImg').src = imageUrl;
+            document.getElementById('referenceSection').classList.remove('d-none');
+            document.getElementById('searchingMsg').classList.remove('d-none');
+            document.getElementById('heroButtons').classList.add('d-none');
+            document.getElementById('resultsGrid').innerHTML = '';
+            
+            try {
+                const img = await faceapi.fetchImage(imageUrl);
+                const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+
+                if (!detection) {
+                    showToast("No face detected. Please try again.", "danger");
+                    document.getElementById('searchingMsg').classList.add('d-none');
+                    document.getElementById('heroButtons').classList.remove('d-none');
+                    return;
+                }
+
+                const snap = await get(ref(db, `gallery_photos/${eventId}`));
+                let count = 0;
+
+                if (snap.exists()) {
+                    Object.values(snap.val()).forEach(photo => {
+                        if (photo.descriptors && photo.descriptors.some(d => faceapi.euclideanDistance(detection.descriptor, new Float32Array(d)) < 0.5)) {
+                            renderPhoto(photo);
+                            count++;
+                        }
+                    });
+                }
+                document.getElementById('matchCount').innerText = count > 0 ? `Found ${count} photos!` : "No matches found.";
+                if(count === 0) showToast("No matches found for this face.", "warning");
+                else showToast(`Found ${count} photos matching your face!`, "success");
+
+            } catch (err) { 
+                console.error(err);
+                if(err.message.includes('CORS') || err.message.includes('Failed to fetch')) {
+                    showToast("Error: Check R2 CORS settings.", "danger");
+                } else {
+                    showToast("Error processing search.", "danger");
+                }
+            } 
+            finally { document.getElementById('searchingMsg').classList.add('d-none'); }
+        }
+
+        window.forceDownload = async (url) => {
+            updateStat(eventId, 'download');
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Network response was not ok");
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                a.download = `photo_${Date.now()}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(blobUrl);
+                document.body.removeChild(a);
+            } catch (error) {
+                console.error("Download failed:", error);
+                window.open(url, '_blank');
+            }
+        };
+
+        // NEW: Toggle Selection for Deletion
+        window.toggleDeleteSelect = (card, url) => {
+            if (deleteSelection.has(url)) {
+                deleteSelection.delete(url);
+                card.classList.remove('selected-for-delete');
+                card.querySelector('button').classList.replace('btn-danger', 'btn-outline-danger');
+                card.querySelector('button').innerHTML = '<i class="bi bi-trash"></i> Mark to Delete';
+            } else {
+                deleteSelection.add(url);
+                card.classList.add('selected-for-delete');
+                card.querySelector('button').classList.replace('btn-outline-danger', 'btn-danger');
+                card.querySelector('button').innerHTML = '<i class="bi bi-check-lg"></i> Marked';
+            }
+            document.getElementById('selectedCount').innerText = deleteSelection.size;
+        };
+
+        // NEW: Submit Deletion Request
+        window.submitDeletionRequest = async () => {
+            if (deleteSelection.size === 0) return showToast("No photos selected.", "warning");
+
+            const btn = document.getElementById('btnSubmitDelete');
+            btn.disabled = true;
+            btn.innerText = "Submitting...";
+
+            try {
+                const requests = Array.from(deleteSelection);
+                // We overwrite the deletionRequests array or you could append. For simplicity, we overwrite/update.
+                await update(ref(db, `clients/${eventId}`), { deletionRequests: requests });
+                
+                showToast("Request sent! Admin will review deletion.", "success");
+                setTimeout(() => location.href = location.href.split('?')[0] + `?eventId=${eventId}`, 2000); // Redirect to home
+            } catch (error) {
+                showToast("Error: " + error.message, "danger");
+                btn.disabled = false;
+                btn.innerText = "Submit Request";
+            }
+        };
+
+        function renderPhoto(photo) {
+            const div = document.createElement('div');
+            div.className = 'col-6 col-md-4 col-lg-3';
+            
+            // Check View Mode to decide Button Action
+            let buttonHtml = '';
+            let clickAction = '';
+            let cardId = `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            if (viewMode === 'delete') {
+                // DELETE VIEW: Select Button
+                buttonHtml = `
+                    <button class="btn btn-sm btn-outline-danger w-100 delete-btn">
+                        <i class="bi bi-trash"></i> Mark to Delete
+                    </button>`;
+                clickAction = `onclick="toggleDeleteSelect(this, '${photo.url}')"`;
+            } else {
+                // NORMAL VIEW: Download Button
+                buttonHtml = `
+                    <button onclick="event.stopPropagation(); forceDownload('${photo.url}')" class="btn btn-sm btn-dark w-100">
+                        <i class="bi bi-download"></i> Download
+                    </button>`;
+            }
+
+            div.innerHTML = `
+                <div class="card photo-card shadow-sm h-100 border-0" id="${cardId}" ${clickAction}>
+                    <img src="${photo.url}" crossorigin="anonymous" class="card-img-top rounded">
+                    <div class="card-body p-2 text-center">
+                        ${buttonHtml}
+                    </div>
+                </div>`;
+            document.getElementById('resultsGrid').appendChild(div);
+        }
+    </script>
+</body>
+</html>

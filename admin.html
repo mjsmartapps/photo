@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MJ SMART APPS - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --sidebar-width: 260px;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        /* Login Styles */
+        .login-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at top right, #1e293b, #0f172a);
+        }
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Responsive Sidebar */
+        .sidebar {
+            background: var(--bg-card);
+            border-right: 1px solid var(--glass-border);
+            height: 100vh;
+            width: var(--sidebar-width);
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1050;
+            padding-top: 20px;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .main-content-wrapper {
+            margin-left: var(--sidebar-width);
+            padding: 30px;
+            min-height: 100vh;
+            transition: margin-left 0.3s ease-in-out;
+        }
+
+        /* Mobile/Tablet Adjustments (< 992px) */
+        @media (max-width: 991.98px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.active { transform: translateX(0); box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
+            .main-content-wrapper { margin-left: 0; padding: 20px; }
+            .sidebar-overlay {
+                display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 1040;
+            }
+            .sidebar-overlay.active { display: block; }
+        }
+
+        .sidebar-brand {
+            font-size: 1.5rem; font-weight: 700; color: var(--text-primary);
+            padding: 0 20px 20px; border-bottom: 1px solid var(--glass-border);
+            margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+        }
+        .sidebar-link {
+            display: flex; align-items: center; padding: 12px 20px; color: var(--text-secondary);
+            text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent;
+            font-weight: 500; cursor: pointer;
+        }
+        .sidebar-link:hover { background: rgba(255, 255, 255, 0.05); color: var(--text-primary); }
+        .sidebar-link.active {
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, transparent 100%);
+            color: var(--accent-color); border-left-color: var(--accent-color);
+        }
+        .sidebar-link i { margin-right: 12px; font-size: 1.2rem; }
+
+        /* Cards */
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: 16px;
+            padding: 24px; height: 100%; position: relative; overflow: hidden; transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-5px); border-color: rgba(59, 130, 246, 0.3); }
+        .stat-label { font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+        .stat-number { font-size: 2.25rem; font-weight: 700; color: var(--text-primary); }
+        .stat-icon { position: absolute; right: 20px; bottom: 20px; font-size: 3rem; opacity: 0.05; color: white; }
+
+        /* Table */
+        .table-container { background: var(--bg-card); border-radius: 16px; border: 1px solid var(--glass-border); overflow: hidden; }
+        .table { margin-bottom: 0; }
+        .table thead th {
+            background: rgba(15, 23, 42, 0.5); color: var(--text-secondary); font-weight: 600;
+            text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--glass-border); padding: 16px; white-space: nowrap;
+        }
+        .table tbody td {
+            background: transparent; color: var(--text-primary); border-bottom: 1px solid var(--glass-border);
+            padding: 16px; vertical-align: middle; font-size: 0.95rem; white-space: nowrap;
+        }
+        .table tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+        /* Buttons & Forms */
+        .form-control { background: var(--bg-dark); border: 1px solid var(--glass-border); color: var(--text-primary); padding: 12px; border-radius: 8px; }
+        .form-control:focus { background: var(--bg-dark); border-color: var(--accent-color); color: var(--text-primary); }
+        
+        .btn-primary { background: var(--accent-color); border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
+        .btn-primary:hover { background: var(--accent-hover); }
+
+        .btn-icon {
+            width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.05);
+            color: var(--text-secondary); transition: all 0.2s;
+        }
+        .btn-icon:hover { color: var(--text-primary); background: rgba(255,255,255,0.1); }
+        .btn-icon.view:hover { color: #38bdf8; border-color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
+        .btn-icon.add:hover { color: #4ade80; border-color: #4ade80; background: rgba(74, 222, 128, 0.1); }
+        .btn-icon.edit:hover { color: #facc15; border-color: #facc15; background: rgba(250, 204, 21, 0.1); }
+        .btn-icon.delete:hover { color: #f87171; border-color: #f87171; background: rgba(248, 113, 113, 0.1); }
+        
+        /* Lock State Styles */
+        .btn-icon.disabled { opacity: 0.3; cursor: not-allowed !important; background: rgba(255,255,255,0.02); pointer-events: none; }
+        .row-locked { opacity: 0.6; background: rgba(239, 68, 68, 0.05); }
+        .row-locked td { color: #f87171 !important; }
+        .locked-badge { 
+            font-size: 0.65rem; background: #ef4444; color: white; padding: 2px 6px; 
+            border-radius: 4px; margin-left: 8px; vertical-align: middle; letter-spacing: 0.5px;
+        }
+
+        /* Upload Area */
+        .upload-drop-zone {
+            border: 2px dashed rgba(255,255,255,0.1); border-radius: 12px; padding: 30px;
+            text-align: center; cursor: pointer; background: rgba(0,0,0,0.2); transition: all 0.2s;
+        }
+        .upload-drop-zone:hover { border-color: var(--accent-color); background: rgba(59, 130, 246, 0.05); }
+
+        /* Modals */
+        .modal-content { background: var(--bg-card); border: 1px solid var(--glass-border); color: var(--text-primary); }
+        .modal-header { border-bottom: 1px solid var(--glass-border); }
+        .modal-footer { border-top: 1px solid var(--glass-border); }
+        
+        /* UPDATED Gallery Grid - Full Page Style */
+        .gallery-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+            gap: 16px; 
+            padding: 5px;
+        }
+        .gallery-item-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1/1;
+        }
+        .gallery-img { 
+            width: 100%; 
+            height: 100%;
+            object-fit: cover; 
+            border-radius: 12px; 
+            border: 1px solid var(--glass-border); 
+            background: #000;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .gallery-img:hover { 
+            transform: scale(1.03); 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        /* Video Indicator */
+        .video-indicator {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.6); color: white; border-radius: 50%;
+            width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            pointer-events: none; z-index: 11; backdrop-filter: blur(2px);
+        }
+
+        .delete-badge {
+            position: absolute; top: 8px; right: 8px;
+            background: rgba(220, 38, 38, 0.9); color: white;
+            padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3); pointer-events: none;
+            backdrop-filter: blur(2px); z-index: 12;
+        }
+        .delete-selected-img {
+            border: 3px solid #ef4444;
+            opacity: 0.8;
+        }
+
+        /* LIGHTBOX STYLES */
+        .lightbox-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 2000; display: none;
+            justify-content: center; align-items: center; flex-direction: column;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .lightbox-content {
+            max-width: 95%; max-height: 85vh; object-fit: contain;
+            border-radius: 4px; box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        .lightbox-close {
+            position: absolute; top: 20px; right: 30px; color: white;
+            font-size: 2.5rem; cursor: pointer; z-index: 2001; transition: 0.2s;
+            opacity: 0.7;
+        }
+        .lightbox-close:hover { color: #ef4444; transform: scale(1.1); opacity: 1; }
+
+        /* Storage Progress Bar */
+        .storage-progress {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .storage-bar {
+            height: 100%;
+            background: var(--accent-color);
+            border-radius: 3px;
+        }
+
+        .hidden { display: none !important; }
+        .view-section { display: none; animation: fadeIn 0.4s ease-out; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* TOAST STYLES */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1100; }
+        .toast { background: var(--bg-card); border: 1px solid var(--glass-border); color: var(--text-primary); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
+        .toast-header { background: rgba(255, 255, 255, 0.05); color: var(--text-primary); border-bottom: 1px solid var(--glass-border); }
+        .btn-close-white { filter: invert(1) grayscale(100%) brightness(200%); }
+    </style>
+</head>
+<body>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div id="mediaLightbox" class="lightbox-overlay" onclick="closeLightbox(event)">
+        <i class="bi bi-x-lg lightbox-close" onclick="closeLightbox(event)"></i>
+        <div id="lightboxContainer" class="d-flex justify-content-center align-items-center w-100 h-100">
+            </div>
+    </div>
+
+    <div id="loginView" class="login-wrapper">
+        <div class="login-container text-center">
+            <h3 class="mb-4 fw-bold">Admin Portal</h3>
+            <input type="email" id="emailInput" class="form-control mb-3" placeholder="Email">
+            <input type="password" id="passInput" class="form-control mb-4" placeholder="Password">
+            <button id="btnLogin" class="btn btn-primary w-100">Sign In</button>
+            <p id="loginError" class="text-danger mt-3 small"></p>
+        </div>
+    </div>
+
+    <div id="dashboardView" class="hidden">
+        <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+        <div class="sidebar d-flex flex-column" id="adminSidebar">
+            <div class="sidebar-brand">
+                <i class="bi bi-camera-fill text-accent me-2"></i>MJ STUDIO
+                <button class="btn btn-sm text-secondary d-lg-none ms-auto" onclick="toggleSidebar()"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="flex-grow-1 px-3">
+                <a onclick="switchView('home'); toggleSidebar()" id="nav-home" class="sidebar-link active mb-2"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a>
+                <a onclick="switchView('clients'); toggleSidebar()" id="nav-clients" class="sidebar-link"><i class="bi bi-people-fill"></i> Clients</a>
+                <a onclick="switchView('storage'); toggleSidebar()" id="nav-storage" class="sidebar-link"><i class="bi bi-hdd-fill"></i> Storage History</a>
+            </div>
+            <div class="p-3 border-top border-secondary border-opacity-10">
+                <button id="btnLogout" class="btn btn-outline-danger w-100 btn-sm">Logout</button>
+            </div>
+        </div>
+
+        <div class="main-content-wrapper">
+            
+            <button class="btn btn-dark d-lg-none mb-4 border border-secondary border-opacity-25" onclick="toggleSidebar()">
+                <i class="bi bi-list me-2"></i>Menu
+            </button>
+
+            <div id="view-home" class="view-section active">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0">Dashboard Overview</h2>
+                    <span class="badge bg-success bg-opacity-10 text-success">System Online</span>
+                </div>
+                <div class="row g-4">
+                    <div class="col-md-4 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Active Clients</div>
+                            <div class="stat-number" id="totalClientsCount">0</div>
+                            <i class="bi bi-people-fill stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Storage Used</div>
+                            <div class="stat-number text-accent" id="totalStorageUsed">0 MB</div>
+                            <i class="bi bi-hdd-network-fill stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-12">
+                        <div class="stat-card">
+                            <div class="stat-label">AI Status</div>
+                            <div id="dashboardModelStatus" class="fs-4 mt-1 fw-bold text-warning">Loading...</div>
+                            <i class="bi bi-cpu-fill stat-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-clients" class="view-section">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0">Client Management</h2>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addClientModal">
+                        <i class="bi bi-plus-lg me-2"></i>New Client
+                    </button>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6 col-lg-5">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
+                            <input type="text" id="clientSearchInput" class="form-control" placeholder="Search by Name or Phone...">
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
+                            <input type="month" id="clientMonthFilter" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Client</th>
+                                    <th>Event</th>
+                                    <th>Phone</th>
+                                    <th>Images</th>
+                                    <th>Size</th>
+                                    <th style="min-width: 150px;">Actions</th>
+                                    <th>Generated Links</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTableBody">
+                                <tr><td colspan="8" class="text-center text-muted py-5">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-storage" class="view-section">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0">Storage Analytics</h2>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6 col-lg-8">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
+                            <input type="text" id="storageSearch" class="form-control" placeholder="Search Client or Event Name...">
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
+                            <input type="month" id="storageMonthFilter" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row g-3 mb-4 justify-content-center">
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Upload Size</div>
+                            <div class="stat-number fs-4 text-info" id="storageViewTotalSize">0 MB</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Files Uploaded</div>
+                            <div class="stat-number fs-4 text-primary" id="storageViewTotalFiles">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Total Views</div>
+                            <div class="stat-number fs-4 text-success" id="storageViewTotalViews">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Total Downloads</div>
+                            <div class="stat-number fs-4 text-warning" id="storageViewTotalDownloads">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3 border-danger border-opacity-25 bg-danger bg-opacity-10">
+                            <div class="stat-label small text-danger">Pending Payment</div>
+                            <div class="stat-number fs-4 text-danger" id="storageViewPendingCost">₹0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Total Est. Cost</div>
+                            <div class="stat-number fs-4 text-white" id="storageViewTotalCost">₹0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="p-3 border-bottom border-secondary border-opacity-10">
+                        <h6 class="m-0 text-white fw-bold"><i class="bi bi-graph-up-arrow me-2"></i>Detailed History</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Event Name</th>
+                                    <th>Client</th>
+                                    <th>Date</th>
+                                    <th>Files</th>
+                                    <th>Views</th>
+                                    <th>Downloads</th>
+                                    <th>Size Used</th>
+                                    <th>Cost (Est.)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="storageHistoryBody">
+                                <tr><td colspan="8" class="text-center text-muted py-5">Loading Storage Data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-gallery" class="view-section">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 border-bottom border-secondary border-opacity-25 pb-3">
+                    <div>
+                        <h2 class="fw-bold m-0" id="galleryViewClientName">Client Gallery</h2>
+                        <div class="d-flex gap-2 text-secondary small mt-1 align-items-center">
+                            <span id="galleryViewEventName" class="badge bg-secondary bg-opacity-25">Event Name</span>
+                            <span class="text-secondary mx-1">•</span>
+                            <span>ID: <span id="galleryViewClientId"></span></span>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-light" onclick="switchView('clients')">
+                        <i class="bi bi-arrow-left me-2"></i>Back to Clients
+                    </button>
+                </div>
+
+                <div id="deleteRequestControls" class="alert alert-danger bg-opacity-10 border-danger d-flex justify-content-between align-items-center d-none mb-4">
+                     <div>
+                        <i class="bi bi-exclamation-circle-fill text-danger me-2"></i>
+                        <span class="text-danger fw-bold"><span id="delReqCount">0</span> Deletion Requests Found</span>
+                        <span class="text-white-50 small ms-2">Customer requested removal of these images.</span>
+                     </div>
+                     <button class="btn btn-danger btn-sm" id="btnProcessDelete" onclick="toggleDeleteFilter()">Review Requests</button>
+                </div>
+                
+                <div id="confirmDeletePanel" class="alert alert-warning bg-opacity-10 border-warning d-flex justify-content-between align-items-center d-none mb-4">
+                     <div>
+                        <i class="bi bi-trash-fill text-warning me-2"></i>
+                        <span class="text-warning fw-bold">Reviewing Deletion Requests</span>
+                     </div>
+                     <div class="d-flex gap-2">
+                        <button class="btn btn-outline-light btn-sm" onclick="cancelDeleteReview()">Cancel</button>
+                        <button class="btn btn-warning btn-sm" onclick="performPermanentDelete()">Confirm Permanent Delete</button>
+                     </div>
+                </div>
+
+                <div id="galleryGrid" class="gallery-grid">
+                    </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="modal fade" id="addClientModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title fw-bold">Create New Event</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4">
+                    <form id="addClientForm">
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Date</label><input type="date" id="clientDate" class="form-control"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Client Name</label><input type="text" id="clientName" class="form-control" placeholder="John Doe"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Event Name</label><input type="text" id="eventName" class="form-control" placeholder="Wedding"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Phone</label><input type="tel" id="clientPhone" class="form-control" placeholder="+91..."></div>
+                        </div>
+                        <div class="alert alert-info mt-4 mb-0 small border-0 bg-opacity-10 bg-info">
+                            <i class="bi bi-info-circle me-2"></i>Create the event first, then use "Add More" to upload photos.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-light border-0" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" id="btnSaveClient" onclick="saveClient()">Create Event</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addMorePhotosModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title fw-bold">Add More Media</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary small mb-3">Adding to: <span id="addMoreClientName" class="text-white fw-bold"></span></p>
+                    <div class="upload-drop-zone" onclick="document.getElementById('addMoreInput').click()">
+                        <i class="bi bi-plus-circle-dotted display-4 text-accent"></i>
+                        <p class="text-white mt-2">Click to Add Photos/Videos</p>
+                        <input type="file" id="addMoreInput" class="d-none" multiple accept="image/*,video/*">
+                    </div>
+                    <div id="addMoreCountLabel" class="text-center mt-2 text-info small"></div>
+                    <div id="addMoreProgressBox" class="mt-3" style="display:none;">
+                         <div class="d-flex justify-content-between small mb-1">
+                            <span>Uploading...</span>
+                            <div>
+                                <span class="text-warning me-3" id="addMoreSpeed">0 MB/s</span>
+                                <span id="addMorePercent">0%</span>
+                            </div>
+                        </div>
+                        <div class="progress" style="height: 6px;"><div id="addMoreProgressBar" class="progress-bar bg-accent" style="width: 0%"></div></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-light border-0" data-bs-dismiss="modal">Close</button>
+                    <button class="btn btn-primary" id="btnAddMoreConfirm" onclick="confirmAddMore()" disabled>Upload</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editClientModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Edit Details</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4">
+                    <form id="editClientForm">
+                        <input type="hidden" id="editClientId">
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="editClientName" class="form-control"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Event</label><input type="text" id="editEventName" class="form-control"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Date</label><input type="date" id="editClientDate" class="form-control"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Phone</label><input type="tel" id="editClientPhone" class="form-control"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="updateClient()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content border-danger">
+                <div class="modal-header border-bottom border-secondary border-opacity-25 bg-danger bg-opacity-10">
+                    <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center p-4">
+                    <p class="mb-0">Are you sure? This will delete the client and all associated photos permanently.</p>
+                </div>
+                <div class="modal-footer justify-content-center border-top border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="performDeleteClient()">Yes, Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="lockedModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-danger">
+                <div class="modal-header border-danger bg-danger bg-opacity-10">
+                    <h5 class="modal-title text-danger fw-bold"><i class="bi bi-lock-fill me-2"></i>Access Restricted</h5>
+                </div>
+                <div class="modal-body text-center p-5">
+                    <i class="bi bi-shield-lock display-1 text-danger mb-4"></i>
+                    <h3 class="fw-bold mb-3">Service Suspended</h3>
+                    <p class="text-secondary mb-4">
+                        This action is disabled because the month has been locked by the developer.
+                        <br><br>
+                        <span class="text-white bg-danger bg-opacity-25 px-3 py-1 rounded">Please contact your developer or Pay Month due.</span>
+                    </p>
+                    <button class="btn btn-outline-light" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, set, get, remove, update, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5jaPVkCwxXiMYhSn0uuW9QSMc-B5C9YY",
+            authDomain: "mjsmartapps.firebaseapp.com",
+            databaseURL: "https://mjsmartapps-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "mjsmartapps",
+            storageBucket: "mjsmartapps.firebasestorage.app",
+            messagingSenderId: "1033240518010",
+            appId: "1:1033240518010:web:930921011dda1bd56e0ac3",
+            measurementId: "G-959VLQSHH2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        function formatBytes(bytes) {
+            if (!+bytes) return '0 B';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${sizes[i]}`;
+        }
+
+        let activeAddClientId, activeAddClientName, editClientModalInstance, addMoreModalInstance, deleteConfirmModalInstance, lockedModalInstance;
+        let pendingDeleteId = null;
+        window.allClientsData = [];
+        
+        let currentGalleryId = null;
+        let currentDeleteRequests = [];
+        let isDeleteFilterActive = false;
+        let currentPhotosCache = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+             editClientModalInstance = new bootstrap.Modal(document.getElementById('editClientModal'));
+             addMoreModalInstance = new bootstrap.Modal(document.getElementById('addMorePhotosModal'));
+             deleteConfirmModalInstance = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+             lockedModalInstance = new bootstrap.Modal(document.getElementById('lockedModal'));
+             
+             document.getElementById('addMoreInput').addEventListener('change', function(){
+                document.getElementById('addMoreCountLabel').innerText = this.files.length ? `${this.files.length} files selected` : '';
+                document.getElementById('btnAddMoreConfirm').disabled = !this.files.length;
+             });
+
+             const now = new Date();
+             const monthStr = now.toISOString().slice(0, 7); 
+             document.getElementById('storageMonthFilter').value = monthStr;
+
+             document.getElementById('storageSearch').addEventListener('input', filterAndRenderStorage);
+             document.getElementById('storageMonthFilter').addEventListener('change', filterAndRenderStorage);
+
+             document.getElementById('clientSearchInput').addEventListener('input', renderClientTable);
+             document.getElementById('clientMonthFilter').addEventListener('change', renderClientTable);
+
+             document.getElementById('addClientModal').addEventListener('shown.bs.modal', () => {
+                 document.getElementById('clientDate').valueAsDate = new Date();
+             });
+        });
+
+        window.showToast = (message, type = 'info') => {
+            const toastContainer = document.getElementById('toastContainer');
+            const toastEl = document.createElement('div');
+            let headerClass = type === 'success' ? 'bg-success text-white' : type === 'error' ? 'bg-danger text-white' : 'bg-primary text-white';
+            const toastHtml = `<div class="toast show"><div class="toast-header ${headerClass}"><strong class="me-auto">Notification</strong><button type="button" class="btn-close btn-close-white" onclick="this.parentElement.parentElement.remove()"></button></div><div class="toast-body text-white">${message}</div></div>`;
+            toastEl.innerHTML = toastHtml;
+            toastContainer.appendChild(toastEl.firstChild);
+            setTimeout(() => toastContainer.lastChild?.remove(), 3000);
+        };
+
+        window.toggleSidebar = () => {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        };
+
+        window.switchView = (v) => {
+            document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('active'));
+            const navLink = document.getElementById(`nav-${v}`);
+            if (navLink) navLink.classList.add('active');
+
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${v}`).classList.add('active');
+        };
+
+        window.checkLock = (isLocked) => {
+            if (isLocked) {
+                lockedModalInstance.show();
+                return true; 
+            }
+            return false;
+        };
+
+        // NEW: Lightbox Logic
+        window.openLightbox = (url, isVideo) => {
+            const container = document.getElementById('lightboxContainer');
+            const overlay = document.getElementById('mediaLightbox');
+            
+            if (isVideo) {
+                container.innerHTML = `
+                    <video src="${url}" controls autoplay class="lightbox-content" style="width: 80%; box-shadow: 0 0 50px rgba(0,0,0,0.5);"></video>
+                `;
+            } else {
+                container.innerHTML = `
+                    <img src="${url}" class="lightbox-content">
+                `;
+            }
+            overlay.style.display = 'flex';
+        };
+
+        window.closeLightbox = (e) => {
+            if (e.target.id === 'mediaLightbox' || e.target.classList.contains('lightbox-close') || e.target.id === 'lightboxContainer') {
+                const overlay = document.getElementById('mediaLightbox');
+                const container = document.getElementById('lightboxContainer');
+                
+                const video = container.querySelector('video');
+                if (video) video.pause();
+                
+                overlay.style.display = 'none';
+                container.innerHTML = '';
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('loginView').classList.add('hidden');
+                document.getElementById('dashboardView').classList.remove('hidden');
+                initClientsListener();
+            } else {
+                document.getElementById('dashboardView').classList.add('hidden');
+                document.getElementById('loginView').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('btnLogin').addEventListener('click', () => {
+            signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passInput').value)
+                .catch(err => showToast(err.message, 'error'));
+        });
+        document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
+
+        Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
+        ]).then(() => document.getElementById('dashboardModelStatus').innerHTML = '<span class="text-success">Active</span>');
+
+        function initClientsListener() {
+            onValue(ref(db, 'clients'), (snapshot) => {
+                window.allClientsData = []; 
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    document.getElementById('totalClientsCount').innerText = Object.keys(data).length;
+
+                    const clientsArray = Object.entries(data).map(([key, val]) => ({key, ...val}));
+                    clientsArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    clientsArray.forEach(clientObj => {
+                        window.allClientsData.push({...clientObj, id: clientObj.key}); 
+                    });
+                } else {
+                    document.getElementById('totalClientsCount').innerText = 0;
+                }
+                
+                let globalTotalSize = window.allClientsData.reduce((acc, curr) => acc + (curr.totalSize || 0), 0);
+                document.getElementById('totalStorageUsed').innerText = formatBytes(globalTotalSize);
+                
+                renderClientTable();
+                filterAndRenderStorage(); 
+            });
+        }
+
+        window.renderClientTable = () => {
+            const tbody = document.getElementById('clientsTableBody');
+            tbody.innerHTML = '';
+            
+            const searchTerm = document.getElementById('clientSearchInput').value.toLowerCase();
+            const monthFilter = document.getElementById('clientMonthFilter').value; 
+            
+            const filteredClients = window.allClientsData.filter(client => {
+                const nameMatch = client.name.toLowerCase().includes(searchTerm);
+                const phoneMatch = client.phone.includes(searchTerm);
+                const matchesSearch = nameMatch || phoneMatch;
+                const matchesMonth = monthFilter ? client.date.startsWith(monthFilter) : true;
+                return matchesSearch && matchesMonth;
+            });
+
+            if (filteredClients.length === 0) {
+                 tbody.innerHTML = '<tr><td colspan="8" class="text-center text-secondary py-5">No matching clients found.</td></tr>';
+                 return;
+            }
+
+            filteredClients.forEach(client => {
+                const key = client.id;
+                const baseUrl = window.location.href.replace('admin.html', 'index.html').split('#')[0];
+                
+                const isLocked = client.isLocked === true;
+                const rowClass = isLocked ? 'row-locked' : '';
+                const lockBadge = isLocked ? '<span class="locked-badge">LOCKED</span>' : '';
+
+                const tr = document.createElement('tr');
+                tr.className = rowClass;
+                tr.innerHTML = `
+                    <td><span class="text-white">${client.date}</span></td>
+                    <td><span class="fw-bold text-white">${client.name}</span>${lockBadge}</td>
+                    <td>${client.eventName}</td>
+                    <td>${client.phone}</td>
+                    <td class="text-center"><span class="badge bg-secondary bg-opacity-25 text-light">${client.totalImages || 0}</span></td>
+                    <td class="font-monospace text-accent small">${formatBytes(client.totalSize || 0)}</td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <button class="btn-icon view" onclick="if(!checkLock(${isLocked})) viewClientGallery('${key}')"><i class="bi bi-eye"></i></button>
+                            <button class="btn-icon add ${isLocked?'disabled':''}" onclick="if(!checkLock(${isLocked})) triggerAddMore('${key}', '${client.name}')"><i class="bi bi-cloud-plus"></i></button>
+                            <button class="btn-icon edit ${isLocked?'disabled':''}" onclick="if(!checkLock(${isLocked})) triggerEdit('${key}')"><i class="bi bi-pencil"></i></button>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}')"><i class="bi bi-robot me-1"></i>AI</button>
+                                <button class="btn btn-sm btn-outline-info" onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}&view=all')"><i class="bi bi-grid me-1"></i>Gallery</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}&view=delete')"><i class="bi bi-trash-fill me-1"></i>Del. Link</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        };
+
+        window.filterAndRenderStorage = () => {
+            const searchTerm = document.getElementById('storageSearch').value.toLowerCase();
+            const monthFilter = document.getElementById('storageMonthFilter').value; 
+            const tbody = document.getElementById('storageHistoryBody');
+            tbody.innerHTML = '';
+
+            const filteredClients = window.allClientsData.filter(client => {
+                const matchesSearch = (client.name.toLowerCase().includes(searchTerm) || client.eventName.toLowerCase().includes(searchTerm));
+                const matchesMonth = monthFilter ? client.date.startsWith(monthFilter) : true;
+                return matchesSearch && matchesMonth;
+            });
+
+            if(filteredClients.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No events found for this filter.</td></tr>';
+                document.getElementById('storageViewTotalSize').innerText = "0 MB";
+                document.getElementById('storageViewTotalFiles').innerText = "0";
+                document.getElementById('storageViewTotalViews').innerText = "0";
+                document.getElementById('storageViewTotalDownloads').innerText = "0";
+                document.getElementById('storageViewTotalCost').innerText = "₹0";
+                document.getElementById('storageViewPendingCost').innerText = "₹0";
+                return;
+            }
+
+            let totalSize = 0;
+            let totalFiles = 0;
+            let totalViews = 0;
+            let totalDownloads = 0;
+            let pendingCost = 0;
+
+            filteredClients.forEach(c => {
+                const size = c.totalSize || 0;
+                totalSize += size;
+                totalFiles += (c.totalImages || 0);
+                totalViews += (c.totalViews || 0);
+                totalDownloads += (c.totalDownloads || 0);
+                
+                const cost = (size / (1024 ** 3)) * 15;
+                const status = c.paymentStatus || 'calculating';
+                
+                if (status === 'unpaid' || status === 'calculating') {
+                    pendingCost += cost;
+                }
+            });
+
+            document.getElementById('storageViewTotalSize').innerText = formatBytes(totalSize);
+            document.getElementById('storageViewTotalFiles').innerText = totalFiles;
+            document.getElementById('storageViewTotalViews').innerText = totalViews;
+            document.getElementById('storageViewTotalDownloads').innerText = totalDownloads;
+            
+            const totalCost = (totalSize / (1024 ** 3)) * 15;
+            document.getElementById('storageViewTotalCost').innerText = `₹${totalCost.toFixed(2)}`;
+            document.getElementById('storageViewPendingCost').innerText = `₹${pendingCost.toFixed(2)}`;
+
+            filteredClients.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            filteredClients.forEach(client => {
+                const size = client.totalSize || 0;
+                const cost = (size / (1024 ** 3)) * 15;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="fw-bold text-white">${client.eventName}</td>
+                    <td>${client.name}</td>
+                    <td><small class="text-secondary">${client.date}</small></td>
+                    <td><span class="badge bg-dark border border-secondary text-secondary">${client.totalImages || 0}</span></td>
+                    <td><span class="text-success">${client.totalViews || 0}</span></td>
+                    <td><span class="text-warning">${client.totalDownloads || 0}</span></td>
+                    <td class="font-monospace text-accent small">${formatBytes(size)}</td>
+                    <td class="font-monospace text-danger small">₹${cost.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        };
+
+        async function uploadToR2(file, clientId) {
+            const path = `gallery_photos/${clientId}/${Date.now()}_${file.name}`;
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("path", path);
+            const WORKER_URL = "https://cool-rice-5599.mjappkdl.workers.dev"; 
+            
+            try {
+                const res = await fetch(WORKER_URL, { method: "POST", body: formData });
+                if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+                const data = await res.json();
+                return data.url;
+            } catch (error) {
+                console.error("R2 Upload Error:", error);
+                throw error;
+            }
+        }
+
+        async function processAndUploadFiles(files, clientId, progBarId, statusId, percentId, speedId) {
+            const progressBar = document.getElementById(progBarId);
+            const statusLabel = document.getElementById(statusId);
+            const percentLabel = document.getElementById(percentId);
+            const speedLabel = document.getElementById(speedId);
+            
+            const fileArray = Array.from(files);
+            let processedCount = 0;
+            let totalBytesProcessed = 0;
+            const startTime = Date.now();
+
+            for (const file of fileArray) {
+                statusLabel.innerText = `Processing: ${file.name}`;
+                try {
+                    let descriptors = [];
+                    if (file.type.startsWith('image/')) {
+                        try {
+                            const img = await faceapi.bufferToImage(file);
+                            const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+                            descriptors = detections.length > 0 ? detections.map(d => Array.from(d.descriptor)) : [];
+                        } catch (e) {
+                            console.warn('Face detection skipped for this file:', e);
+                        }
+                    }
+                    
+                    const downloadURL = await uploadToR2(file, clientId);
+                    
+                    await push(ref(db, `gallery_photos/${clientId}`), {
+                        url: downloadURL,
+                        descriptors: descriptors,
+                        size: file.size,
+                        type: file.type, 
+                        uploadedAt: Date.now()
+                    });
+                    
+                    totalBytesProcessed += file.size;
+                    const elapsedTime = (Date.now() - startTime) / 1000; 
+                    if (elapsedTime > 0) {
+                        const speed = (totalBytesProcessed / 1024 / 1024) / elapsedTime; 
+                        if(speedLabel) speedLabel.innerText = `${speed.toFixed(2)} MB/s`;
+                    }
+
+                } catch (err) { console.error(err); }
+                
+                processedCount++;
+                const percent = Math.round((processedCount / fileArray.length) * 100);
+                if(progressBar) progressBar.style.width = `${percent}%`;
+                if(percentLabel) percentLabel.innerText = `${percent}%`;
+            }
+        }
+
+        window.saveClient = async () => {
+            const date = document.getElementById('clientDate').value;
+            const name = document.getElementById('clientName').value;
+            const eventName = document.getElementById('eventName').value;
+            const phone = document.getElementById('clientPhone').value;
+            
+            if(!date || !name || !eventName || !phone) 
+                return showToast("Please fill all fields.", "warning");
+
+            document.getElementById('btnSaveClient').disabled = true;
+
+            try {
+                const newClientRef = push(ref(db, 'clients'));
+                
+                await set(newClientRef, {
+                    date, name, eventName, phone,
+                    totalSize: 0,
+                    totalImages: 0,
+                    totalViews: 0,      
+                    totalDownloads: 0,  
+                    paymentStatus: 'calculating', 
+                    isLocked: false,
+                    createdAt: Date.now()
+                });
+
+                document.getElementById('addClientForm').reset();
+                bootstrap.Modal.getInstance(document.getElementById('addClientModal')).hide();
+                showToast("Event Created Successfully! Use 'Add More' to upload photos.", "success");
+            } catch (error) { showToast("Error: " + error.message, "error"); }
+            document.getElementById('btnSaveClient').disabled = false;
+        };
+
+        window.triggerAddMore = (clientId, clientName) => {
+            activeAddClientId = clientId;
+            document.getElementById('addMoreClientName').innerText = clientName;
+            document.getElementById('addMoreInput').value = '';
+            document.getElementById('addMoreCountLabel').innerText = '';
+            document.getElementById('addMoreProgressBox').style.display = 'none';
+            document.getElementById('btnAddMoreConfirm').disabled = true;
+            addMoreModalInstance.show();
+        };
+
+        window.confirmAddMore = async () => {
+            const fileInput = document.getElementById('addMoreInput');
+            document.getElementById('btnAddMoreConfirm').disabled = true;
+            document.getElementById('addMoreProgressBox').style.display = 'block';
+
+            let newSize = 0;
+            Array.from(fileInput.files).forEach(f => newSize += f.size);
+
+            await processAndUploadFiles(fileInput.files, activeAddClientId, 'addMoreProgressBar', 'addMoreClientName', 'addMorePercent', 'addMoreSpeed');
+
+            await runTransaction(ref(db, `clients/${activeAddClientId}`), (data) => {
+                if (data) {
+                    data.totalSize = (data.totalSize || 0) + newSize;
+                    data.totalImages = (data.totalImages || 0) + fileInput.files.length;
+                }
+                return data;
+            });
+
+            addMoreModalInstance.hide();
+            showToast("Media added successfully!", "success");
+        };
+
+        window.prepareDeleteClient = (id) => {
+            pendingDeleteId = id;
+            deleteConfirmModalInstance.show();
+        };
+
+        window.performDeleteClient = async () => {
+            if (!pendingDeleteId) return;
+            deleteConfirmModalInstance.hide();
+            const id = pendingDeleteId;
+            try {
+                await remove(ref(db, `clients/${id}`));
+                await remove(ref(db, `gallery_photos/${id}`));
+                showToast("Client deleted successfully.", "success");
+            } catch(e) { showToast("Delete failed: " + e.message, "error"); }
+            pendingDeleteId = null;
+        };
+
+        window.triggerEdit = async (id) => {
+            const snap = await get(ref(db, `clients/${id}`));
+            const data = snap.val();
+            document.getElementById('editClientId').value = id;
+            document.getElementById('editClientName').value = data.name;
+            document.getElementById('editEventName').value = data.eventName;
+            document.getElementById('editClientDate').value = data.date;
+            document.getElementById('editClientPhone').value = data.phone;
+            editClientModalInstance.show();
+        };
+
+        window.updateClient = async () => {
+            const id = document.getElementById('editClientId').value;
+            await update(ref(db, `clients/${id}`), {
+                name: document.getElementById('editClientName').value,
+                eventName: document.getElementById('editEventName').value,
+                date: document.getElementById('editClientDate').value,
+                phone: document.getElementById('editClientPhone').value
+            });
+            editClientModalInstance.hide();
+            showToast("Details updated successfully!", "success");
+        };
+
+        window.viewClientGallery = async (id) => {
+            currentGalleryId = id;
+            isDeleteFilterActive = false;
+            
+            const client = window.allClientsData.find(c => c.id === id);
+            
+            document.getElementById('galleryViewClientId').innerText = id;
+            document.getElementById('galleryViewClientName').innerText = client ? client.name : 'Unknown Client';
+            document.getElementById('galleryViewEventName').innerText = client ? client.eventName : 'Event';
+            
+            const grid = document.getElementById('galleryGrid');
+            grid.innerHTML = '<div class="d-flex justify-content-center w-100 py-5"><div class="spinner-border text-accent" role="status"></div></div>';
+            
+            // Check for Deletion Requests
+            const deleteControls = document.getElementById('deleteRequestControls');
+            const confirmPanel = document.getElementById('confirmDeletePanel');
+            deleteControls.classList.add('d-none');
+            confirmPanel.classList.add('d-none');
+            currentDeleteRequests = [];
+            
+            if (client && client.deletionRequests) {
+                currentDeleteRequests = client.deletionRequests;
+                document.getElementById('delReqCount').innerText = currentDeleteRequests.length;
+                deleteControls.classList.remove('d-none');
+            }
+
+            switchView('gallery');
+            
+            try {
+                const snap = await get(ref(db, `gallery_photos/${id}`));
+                currentPhotosCache = [];
+                if(snap.exists()) {
+                    currentPhotosCache = Object.entries(snap.val()).map(([key, val]) => ({ key, ...val }));
+                    renderGalleryGrid(currentPhotosCache);
+                } else {
+                    grid.innerHTML = '<p class="text-center text-secondary w-100 py-5 mt-5">No media uploaded for this client yet.</p>';
+                }
+            } catch(err) {
+                console.error(err);
+                grid.innerHTML = '<p class="text-center text-danger w-100 py-4">Error loading media.</p>';
+            }
+        };
+        
+        window.renderGalleryGrid = (photos) => {
+            const grid = document.getElementById('galleryGrid');
+            grid.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            
+            if(photos.length === 0) {
+                 grid.innerHTML = '<p class="text-center text-secondary w-100 py-5">No photos found.</p>';
+                 return;
+            }
+
+            photos.forEach(p => {
+                const isVideo = p.type ? p.type.startsWith('video') : (p.url.match(/\.(mp4|webm|ogg|mov)$/i) !== null);
+                const isRequestedForDelete = currentDeleteRequests.includes(p.url);
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'gallery-item-wrapper';
+                
+                let mediaEl;
+                if (isVideo) {
+                    mediaEl = document.createElement('video');
+                    mediaEl.src = p.url;
+                    mediaEl.className = 'gallery-img';
+                    // Video indicator
+                    const indicator = document.createElement('div');
+                    indicator.className = 'video-indicator';
+                    indicator.innerHTML = '<i class="bi bi-play-fill fs-3"></i>';
+                    wrapper.appendChild(indicator);
+                } else {
+                    mediaEl = document.createElement('img');
+                    mediaEl.src = p.url;
+                    mediaEl.className = 'gallery-img';
+                    mediaEl.loading = "lazy";
+                }
+                
+                if (isRequestedForDelete) {
+                    mediaEl.classList.add('delete-selected-img');
+                    const badge = document.createElement('div');
+                    badge.className = 'delete-badge';
+                    badge.innerHTML = '<i class="bi bi-trash-fill me-1"></i>DELETE REQ';
+                    wrapper.appendChild(badge);
+                }
+                
+                wrapper.onclick = () => window.openLightbox(p.url, isVideo);
+                
+                wrapper.appendChild(mediaEl);
+                fragment.appendChild(wrapper);
+            });
+            grid.appendChild(fragment);
+        };
+
+        window.toggleDeleteFilter = () => {
+            isDeleteFilterActive = !isDeleteFilterActive;
+            const grid = document.getElementById('galleryGrid');
+            const deleteControls = document.getElementById('deleteRequestControls');
+            const confirmPanel = document.getElementById('confirmDeletePanel');
+
+            if (isDeleteFilterActive) {
+                deleteControls.classList.add('d-none');
+                confirmPanel.classList.remove('d-none');
+                const filtered = currentPhotosCache.filter(p => currentDeleteRequests.includes(p.url));
+                renderGalleryGrid(filtered);
+            }
+        };
+
+        window.cancelDeleteReview = () => {
+             isDeleteFilterActive = false;
+             document.getElementById('deleteRequestControls').classList.remove('d-none');
+             document.getElementById('confirmDeletePanel').classList.add('d-none');
+             renderGalleryGrid(currentPhotosCache);
+        };
+
+        // UPDATED FUNCTION: Removes files but DOES NOT deduct size
+        window.performPermanentDelete = async () => {
+             if (!currentGalleryId || currentDeleteRequests.length === 0) return;
+             
+             if (!confirm(`Are you sure you want to permanently delete ${currentDeleteRequests.length} items? This cannot be undone.`)) return;
+
+             const btn = document.querySelector('#confirmDeletePanel button.btn-warning');
+             btn.disabled = true;
+             btn.innerText = 'Deleting...';
+
+             try {
+                const photosToDelete = currentPhotosCache.filter(p => currentDeleteRequests.includes(p.url));
+                let deletedCount = 0;
+
+                const updates = {};
+                photosToDelete.forEach(p => {
+                    updates[`gallery_photos/${currentGalleryId}/${p.key}`] = null;
+                    deletedCount++;
+                });
+                
+                updates[`clients/${currentGalleryId}/deletionRequests`] = null;
+
+                await update(ref(db), updates);
+
+                await runTransaction(ref(db, `clients/${currentGalleryId}`), (data) => {
+                    if (data) {
+                        const currentCount = Number(data.totalImages || 0);
+                        
+                        // NOTE: Total size is intentionally NOT deducted here.
+                        // It only accumulates on upload.
+                        
+                        data.totalImages = Math.max(0, currentCount - deletedCount);
+                    }
+                    return data;
+                });
+
+                showToast(`Successfully deleted ${deletedCount} items.`, "success");
+                
+                btn.disabled = false;
+                btn.innerText = 'Confirm Permanent Delete';
+                cancelDeleteReview();
+                viewClientGallery(currentGalleryId); 
+                
+             } catch (error) {
+                 console.error(error);
+                 showToast("Error deleting items: " + error.message, "error");
+                 btn.disabled = false;
+             }
+        };
+
+        window.copyToClipboard = (t) => {
+            navigator.clipboard.writeText(t).then(() => {
+                showToast("Link copied to clipboard!", "success");
+            });
+        };
+    </script>
+</body>
+</html>

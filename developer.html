@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Portal | MJ Smart Apps</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-body: #020617;
+            --glass-bg: rgba(30, 41, 59, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        }
+
+        body {
+            background-color: var(--bg-body);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Glassmorphism */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .glass-panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Inputs */
+        .glass-input-group {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 4px 8px;
+            transition: all 0.3s ease;
+        }
+        .glass-input-group:focus-within {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        input[type="month"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        /* Premium Buttons */
+        .btn-premium {
+            background: var(--accent-gradient);
+            border: none; color: white; padding: 12px 24px; border-radius: 12px; font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-premium:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.4); color: white; }
+
+        /* Soft Buttons */
+        .btn-soft {
+            border: 1px solid transparent; font-size: 0.75rem; font-weight: 700;
+            padding: 8px 0; border-radius: 12px; transition: all 0.2s;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            width: 100%;
+            text-align: center;
+        }
+        .btn-soft-success { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.1); }
+        .btn-soft-success:hover { background: #10b981; color: #fff; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+        .btn-soft-danger { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.1); }
+        .btn-soft-danger:hover { background: #ef4444; color: #fff; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+        .btn-soft-warning { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.1); }
+        .btn-soft-warning:hover { background: #f59e0b; color: #fff; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+
+        /* Lock Switch */
+        .lock-switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .lock-switch input { opacity: 0; width: 0; height: 0; }
+        .lock-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(239, 68, 68, 0.2); transition: .4s; border-radius: 34px; border: 1px solid rgba(239, 68, 68, 0.4); }
+        .lock-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 2px; background-color: #fca5a5; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .lock-slider { background-color: #10b981; border-color: #10b981; } 
+        
+        /* Locking Logic Visuals */
+        input:checked + .lock-slider { background-color: #ef4444; border-color: #ef4444; } /* Locked Color */
+        input:checked + .lock-slider:before { transform: translateX(24px); background-color: white; }
+        
+        /* Default (Unlocked) */
+        .lock-slider { background-color: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); }
+        .lock-slider:before { background-color: #6ee7b7; }
+
+        .lock-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-right: 10px; }
+
+        /* Card Elements */
+        .card-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+        .card-value { font-family: 'Courier New', monospace; font-weight: 700; color: var(--text-primary); font-size: 1.1rem; }
+        .month-header { font-size: 1.25rem; font-weight: 700; color: white; letter-spacing: -0.5px; }
+        
+        /* Stats */
+        .stat-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600; }
+        .stat-value { font-size: 2.5rem; font-weight: 700; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        /* Modal */
+        .modal-content { background: #0f172a; border: 1px solid var(--glass-border); color: var(--text-primary); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); }
+        .modal-header, .modal-footer { border-color: var(--glass-border); background: rgba(255,255,255,0.02); }
+        .btn-close-white { filter: invert(1); }
+
+        .hidden { display: none !important; }
+        .login-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-container { width: 100%; max-width: 400px; padding: 48px; }
+        .form-control { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); color: white; padding: 14px 18px; border-radius: 12px; }
+        .form-control:focus { background: rgba(15, 23, 42, 0.8); border-color: #3b82f6; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer" style="z-index: 1100;"></div>
+
+    <div id="loginView" class="login-wrapper">
+        <div class="login-container glass-panel">
+            <div class="text-center mb-5">
+                <i class="bi bi-code-square display-4 text-primary mb-3 d-block" style="background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
+                <h3 class="fw-bold mb-1">Developer Portal</h3>
+                <p class="text-secondary small">Secure Access</p>
+            </div>
+            <div class="d-grid gap-3">
+                <input type="email" id="emailInput" class="form-control" placeholder="Email Address">
+                <input type="password" id="passInput" class="form-control" placeholder="Password">
+                <button id="btnLogin" class="btn btn-premium w-100 mt-2">Sign In</button>
+            </div>
+            <p id="loginError" class="text-danger mt-3 small text-center"></p>
+        </div>
+    </div>
+
+    <div id="dashboardView" class="container py-5 hidden">
+        <div class="d-flex flex-wrap justify-content-between align-items-end mb-5 gap-3">
+            <div>
+                <h6 class="text-primary fw-bold text-uppercase small letter-spacing-2 mb-1">Overview</h6>
+                <h2 class="fw-bold m-0 display-6">Monthly Revenue Manager</h2>
+            </div>
+            <div class="d-flex gap-3 align-items-center">
+                <div class="input-group glass-input-group">
+                    <span class="input-group-text bg-transparent border-0 text-secondary ps-2"><i class="bi bi-calendar-month"></i></span>
+                    <input type="month" id="monthFilter" class="form-control border-0 bg-transparent text-white shadow-none" style="min-width: 160px;">
+                </div>
+                <button id="btnLogout" class="btn btn-outline-danger btn-sm px-4 py-2 h-100">
+                    <i class="bi bi-box-arrow-right me-2"></i>Logout
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-5">
+            <div class="col-md-6">
+                <div class="glass-panel p-4 h-100 position-relative overflow-hidden">
+                    <div class="position-absolute top-0 end-0 p-4 opacity-10"><i class="bi bi-wallet2 display-1"></i></div>
+                    <div class="stat-label">Total Realized Revenue (Paid)</div>
+                    <div class="stat-value" id="globalTotalRevenue">₹0.00</div>
+                    <div class="mt-2 text-secondary small">Lifetime earnings</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="glass-panel p-4 h-100 position-relative overflow-hidden">
+                    <div class="position-absolute top-0 end-0 p-4 opacity-10"><i class="bi bi-hourglass-split display-1 text-danger"></i></div>
+                    <div class="stat-label">Total Outstanding (Unpaid)</div>
+                    <div class="stat-value text-danger" id="globalPendingRevenue">₹0.00</div>
+                    <div class="mt-2 text-secondary small">Across all months</div>
+                </div>
+            </div>
+        </div>
+
+        <h5 class="mb-4 text-secondary small fw-bold text-uppercase ls-1">Monthly Breakdown</h5>
+        <div id="monthlyCardGrid" class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+            <div class="col-12 text-center py-5 text-secondary">Loading data...</div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="batchConfirmModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Confirm Payment Status</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-4">
+                        <p class="text-secondary mb-1">Target Month:</p>
+                        <h4 class="fw-bold text-white mb-0" id="confirmMonthName">MONTH YEAR</h4>
+                    </div>
+                    <div class="alert alert-light border-0 bg-white bg-opacity-5 text-white d-flex align-items-center mb-4">
+                        <i id="confirmIcon" class="bi bi-info-circle-fill me-3 fs-4 text-info"></i>
+                        <div>
+                            This will set <strong id="confirmClientCount">0</strong> clients to 
+                            <strong id="confirmStatusName" class="text-uppercase">STATUS</strong>.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center border-top-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary px-4" onclick="window.performBatchUpdate()">Confirm & Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="lockConfirmModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-danger">
+                <div class="modal-header border-danger bg-danger bg-opacity-10">
+                    <h5 class="modal-title fw-bold text-danger"><i class="bi bi-shield-lock-fill me-2"></i>Security Action</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <h4 class="mb-3 fw-bold" id="lockModalTitle">Lock Services?</h4>
+                    <p class="text-secondary mb-4">
+                        You are about to <strong id="lockActionText" class="text-white">LOCK</strong> all services for 
+                        <span id="lockMonthName" class="text-white fw-bold">MONTH</span>.
+                    </p>
+                    <div class="alert alert-danger bg-opacity-10 border-danger d-flex align-items-start text-start">
+                        <i class="bi bi-exclamation-triangle-fill me-3 mt-1"></i>
+                        <small><strong>Warning:</strong> This will immediately disable all generated links for this month. Clients will see a "Contact Developer" message.</small>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center border-top-0 pt-0">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger px-4" onclick="window.performLockUpdate()">Confirm Action</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5jaPVkCwxXiMYhSn0uuW9QSMc-B5C9YY",
+            authDomain: "mjsmartapps.firebaseapp.com",
+            databaseURL: "https://mjsmartapps-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "mjsmartapps",
+            storageBucket: "mjsmartapps.firebasestorage.app",
+            messagingSenderId: "1033240518010",
+            appId: "1:1033240518010:web:930921011dda1bd56e0ac3",
+            measurementId: "G-959VLQSHH2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        const STUDIO_NAME = "Rathna Studio";
+        let rawData = {};
+        let groupedData = {};
+        let batchTarget = { monthKey: null, status: null, clientIds: [] };
+        let lockTarget = { monthKey: null, isLocked: false, clientIds: [] };
+        let batchConfirmModal = null;
+        let lockConfirmModal = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            batchConfirmModal = new bootstrap.Modal(document.getElementById('batchConfirmModal'));
+            lockConfirmModal = new bootstrap.Modal(document.getElementById('lockConfirmModal'));
+            
+            const now = new Date();
+            const monthStr = now.toISOString().slice(0, 7); 
+            document.getElementById('monthFilter').value = monthStr;
+            
+            document.getElementById('monthFilter').addEventListener('change', () => {
+                processAndRender(rawData);
+            });
+        });
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer');
+            let icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-info-circle-fill text-primary';
+            if(type === 'error') icon = 'bi-x-circle-fill text-danger';
+            const toastEl = document.createElement('div');
+            toastEl.className = 'toast show align-items-center';
+            toastEl.innerHTML = `<div class="d-flex"><div class="toast-body d-flex align-items-center gap-2"><i class="bi ${icon}"></i> ${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.closest('.toast').remove()"></button></div>`;
+            toastContainer.appendChild(toastEl);
+            setTimeout(() => toastEl.remove(), 3000);
+        }
+
+        function formatBytes(bytes) {
+            if (!+bytes) return '0 B';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${sizes[i]}`;
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('loginView').classList.add('hidden');
+                document.getElementById('dashboardView').classList.remove('hidden');
+                initData();
+            } else {
+                document.getElementById('dashboardView').classList.add('hidden');
+                document.getElementById('loginView').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('btnLogin').addEventListener('click', () => {
+            const btn = document.getElementById('btnLogin');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Signing In...';
+            signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passInput').value).catch(err => { showToast(err.message, 'error'); btn.innerHTML = 'Sign In'; });
+        });
+        document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
+
+        function initData() {
+            onValue(ref(db, 'clients'), (snapshot) => {
+                if (snapshot.exists()) {
+                    rawData = snapshot.val();
+                    processAndRender(rawData);
+                } else {
+                    document.getElementById('monthlyCardGrid').innerHTML = '<div class="col-12 text-center py-5 text-secondary">No data available.</div>';
+                }
+            });
+        }
+
+        function processAndRender(data) {
+            groupedData = {};
+            let globalPaid = 0;
+            let globalPending = 0;
+            const filterValue = document.getElementById('monthFilter').value; 
+
+            Object.entries(data).forEach(([key, client]) => {
+                const date = new Date(client.date || Date.now());
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                
+                if (!groupedData[monthKey]) {
+                    groupedData[monthKey] = {
+                        monthKey: monthKey,
+                        monthLabel: date.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                        clientIds: [],
+                        totalClients: 0,
+                        totalStorage: 0,
+                        totalCost: 0,
+                        isPaid: true,
+                        isLocked: false // Assumes locked if ALL are locked, or checks first
+                    };
+                }
+
+                const size = client.totalSize || 0;
+                const cost = (size / (1024 ** 3)) * 15;
+                const status = client.paymentStatus || 'unpaid';
+
+                groupedData[monthKey].clientIds.push(key);
+                groupedData[monthKey].totalClients++;
+                groupedData[monthKey].totalStorage += size;
+                groupedData[monthKey].totalCost += cost;
+                
+                if (client.isLocked) groupedData[monthKey].isLocked = true;
+
+                if (status !== 'paid') {
+                    groupedData[monthKey].isPaid = false;
+                    globalPending += cost;
+                } else {
+                    globalPaid += cost;
+                }
+            });
+
+            let displayKeys = Object.keys(groupedData).sort().reverse();
+            if (filterValue) {
+                displayKeys = displayKeys.filter(key => key === filterValue);
+            }
+
+            renderGrid(displayKeys, globalPaid, globalPending);
+        }
+
+        function renderGrid(keys, gPaid, gPending) {
+            const container = document.getElementById('monthlyCardGrid');
+            container.innerHTML = '';
+
+            if (keys.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center py-5 text-secondary">No records found for the selected month.</div>';
+                return;
+            }
+
+            keys.forEach(monthKey => {
+                const data = groupedData[monthKey];
+                
+                // Lock Toggle Logic
+                const checkedAttr = data.isLocked ? 'checked' : '';
+                const lockLabel = data.isLocked ? 'LOCKED' : 'ACTIVE';
+                const lockColor = data.isLocked ? 'text-danger' : 'text-success';
+
+                // Status View Logic (New Addition)
+                const paymentStatusHtml = data.isPaid 
+                    ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3"><i class="bi bi-check-circle-fill me-1"></i> PAID</span>`
+                    : `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-3"><i class="bi bi-clock-history me-1"></i> UNPAID</span>`;
+
+                const html = `
+                    <div class="col">
+                        <div class="glass-panel h-100 d-flex flex-column">
+                            <div class="p-4 flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h4 class="month-header mb-0">${data.monthLabel}</h4>
+                                    
+                                    <div class="d-flex align-items-center">
+                                        <span class="lock-label ${lockColor}">${lockLabel}</span>
+                                        <label class="lock-switch" title="Toggle Service Lock">
+                                            <input type="checkbox" ${checkedAttr} onclick="window.handleLockToggle(event, '${monthKey}')">
+                                            <span class="lock-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-start mb-4">
+                                    <div>
+                                        <div class="card-label">Client Name</div>
+                                        <div class="fs-5 text-white fw-bold"><i class="bi bi-building me-2 text-primary"></i>${STUDIO_NAME}</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="card-label">Status</div>
+                                        ${paymentStatusHtml}
+                                    </div>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-4">
+                                        <div class="card-label">Events</div>
+                                        <div class="card-value text-white">${data.totalClients}</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="card-label">Storage</div>
+                                        <div class="card-value text-info">${formatBytes(data.totalStorage)}</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="card-label">Est. Cost</div>
+                                        <div class="card-value text-warning">₹${data.totalCost.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-3 border-top border-white border-opacity-10 bg-black bg-opacity-25 rounded-bottom-4">
+                                <div class="d-flex gap-2">
+                                    <button class="btn-soft btn-soft-success" onclick="window.askBatchConfirm('${monthKey}', 'paid')">MARK PAID</button>
+                                    <button class="btn-soft btn-soft-danger" onclick="window.askBatchConfirm('${monthKey}', 'unpaid')">MARK UNPAID</button>
+                                    <button class="btn-soft btn-soft-warning" onclick="window.askBatchConfirm('${monthKey}', 'calculating')">RE-CALC</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+
+            animateValue(document.getElementById('globalTotalRevenue'), gPaid);
+            animateValue(document.getElementById('globalPendingRevenue'), gPending);
+        }
+
+        function animateValue(obj, end) {
+            let startTimestamp = null;
+            const duration = 800;
+            const start = parseFloat(obj.innerText.replace('₹', '')) || 0;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const val = (progress * (end - start) + start).toFixed(2);
+                obj.innerText = `₹${val}`;
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        // --- LOCK LOGIC ---
+        window.handleLockToggle = (event, monthKey) => {
+            event.preventDefault(); 
+            const isLocking = event.target.checked;
+            const data = groupedData[monthKey];
+            
+            lockTarget = {
+                monthKey: monthKey,
+                isLocked: isLocking,
+                clientIds: data.clientIds
+            };
+
+            document.getElementById('lockModalTitle').innerText = isLocking ? "Lock Services?" : "Unlock Services?";
+            document.getElementById('lockActionText').innerText = isLocking ? "LOCK" : "UNLOCK";
+            document.getElementById('lockActionText').className = isLocking ? "text-danger" : "text-success";
+            document.getElementById('lockMonthName').innerText = data.monthLabel;
+
+            lockConfirmModal.show();
+        };
+
+        window.performLockUpdate = () => {
+            if(!lockTarget.clientIds.length) return;
+            const updates = {};
+            lockTarget.clientIds.forEach(id => {
+                updates[`clients/${id}/isLocked`] = lockTarget.isLocked;
+            });
+
+            update(ref(db), updates)
+                .then(() => {
+                    showToast(`Services ${lockTarget.isLocked ? 'LOCKED' : 'UNLOCKED'} successfully`, 'success');
+                    lockConfirmModal.hide();
+                })
+                .catch(err => {
+                    showToast("Lock action failed: " + err.message, 'error');
+                    lockConfirmModal.hide();
+                });
+        };
+
+        // --- PAYMENT STATUS LOGIC ---
+        window.askBatchConfirm = (monthKey, status) => {
+            const data = groupedData[monthKey];
+            if(!data) return;
+
+            batchTarget = { monthKey: monthKey, status: status, clientIds: data.clientIds };
+
+            document.getElementById('confirmMonthName').innerText = data.monthLabel;
+            document.getElementById('confirmClientCount').innerText = data.totalClients;
+            document.getElementById('confirmStatusName').innerText = status;
+            
+            batchConfirmModal.show();
+        };
+
+        window.performBatchUpdate = () => {
+            if(!batchTarget.clientIds.length) return;
+            const updates = {};
+            batchTarget.clientIds.forEach(id => {
+                updates[`clients/${id}/paymentStatus`] = batchTarget.status;
+            });
+
+            update(ref(db), updates)
+                .then(() => {
+                    showToast(`Updated ${batchTarget.clientIds.length} clients to ${batchTarget.status.toUpperCase()}`, 'success');
+                    batchConfirmModal.hide();
+                })
+                .catch(err => {
+                    showToast("Batch update failed: " + err.message, 'error');
+                    batchConfirmModal.hide();
+                });
+        };
+    </script>
+</body>
+</html>
