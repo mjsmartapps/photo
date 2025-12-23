@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find My Photos</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <link rel="stylesheet" href="index.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+<body oncontextmenu="return false;">
+
+    <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" id="toastContainer"></div>
+
+    <div id="mediaLightbox" class="lightbox-overlay" onclick="closeLightbox(event)">
+        <button class="lightbox-close-btn" onclick="closeLightbox(event)">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        
+        <button class="lightbox-nav prev" onclick="changeSlide(-1)"><i class="bi bi-chevron-left"></i></button>
+        <button class="lightbox-nav next" onclick="changeSlide(1)"><i class="bi bi-chevron-right"></i></button>
+        
+        <div id="lightboxContainer" class="lightbox-container"></div>
+        <div id="lightboxActionBar" class="lightbox-actions"></div>
+    </div>
+
+    <div id="loadingScreen" class="loading-overlay">
+        <div class="loader-content">
+            <div class="spinner-border text-light mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+            <h5 class="fw-light" id="loadingText">Loading Event...</h5>
+        </div>
+    </div>
+
+    <div id="errorScreen" class="container min-vh-100 d-flex flex-column justify-content-center align-items-center d-none">
+        <div class="text-center p-5 bg-white rounded-4 shadow-sm" style="max-width: 500px;">
+            <i class="bi bi-exclamation-triangle display-1 text-warning mb-3"></i>
+            <h3 class="fw-bold mb-2">Event Not Found</h3>
+            <p class="text-muted">Please check your link or scan the QR code again.</p>
+        </div>
+    </div>
+
+    <div id="lockScreen" class="lock-screen d-none">
+        <div class="glass-card text-center p-5">
+            <div class="mb-4">
+                <span class="icon-circle bg-danger bg-opacity-10 text-danger">
+                    <i class="bi bi-shield-lock-fill display-4"></i>
+                </span>
+            </div>
+            <h2 class="fw-bold mb-3">Access Suspended</h2>
+            <p class="text-secondary mb-4">This gallery is temporarily unavailable.</p>
+            
+            <div class="alert alert-danger border-0 d-inline-flex align-items-center text-start p-3 rounded-3">
+                <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+                <div>
+                    <strong class="d-block">Action Required</strong>
+                    <span class="small">Please contact the studio to resolve pending dues.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="linkDisabledScreen" class="lock-screen d-none">
+        <div class="glass-card text-center p-5">
+            <div class="mb-4">
+                <span class="icon-circle bg-secondary bg-opacity-10 text-secondary">
+                    <i class="bi bi-link-45deg display-4"></i>
+                </span>
+            </div>
+            <h2 class="fw-bold mb-2">Link Expired</h2>
+            <p class="text-muted mb-4">The <span id="disabledFeatureText" class="fw-bold text-dark"></span> link is no longer active.</p>
+            <div class="d-flex justify-content-center gap-2">
+                <a href="#" onclick="location.reload()" class="btn btn-outline-dark rounded-pill px-4">Refresh</a>
+                <button class="btn btn-dark rounded-pill px-4" onclick="window.close()">Close Tab</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <header id="mainHeader" class="studio-header d-none">
+            <div class="container-fluid px-2 px-md-4 py-2">
+                <div class="row align-items-center g-0">
+                    
+                    <div class="col-3 col-md-3 d-flex justify-content-start">
+                        <img id="headerLogo" src="" alt="Studio Logo" class="studio-logo d-none">
+                    </div>
+
+                    <div class="col-6 col-md-6 text-center">
+                        <h4 class="mb-0 text-dark studio-title text-nowrap">RATHNA STUDIO</h4>
+                        
+                        <div id="headerInfo" class="d-flex flex-row flex-wrap justify-content-center align-items-center gap-2 mt-1">
+                            <p class="mb-0 small header-meta" id="headerAddress" style="display: none;"></p>
+                            
+                            <a id="headerMap" href="" target="_blank" class="header-meta contact-link" style="display: none;">
+                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>Map
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="col-3 col-md-3 d-flex justify-content-end">
+                        <a id="headerPhone" href="" class="contact-btn d-none">
+                            <i class="bi bi-telephone-fill"></i><span id="headerPhoneText" class="d-none d-md-inline ms-2"></span>
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </header>
+
+        <div id="appContent" class="d-none">
+            
+            <section class="hero-section">
+                <div class="hero-bg-animation">
+                    <div class="floating-icon icon-1"><i class="bi bi-camera-fill"></i></div>
+                    <div class="floating-icon icon-2"><i class="bi bi-film"></i></div>
+                    <div class="floating-icon icon-3"><i class="bi bi-images"></i></div>
+                    <div class="floating-icon icon-4"><i class="bi bi-aperture"></i></div>
+                    <div class="light-flash"></div>
+                </div>
+
+                <div class="container position-relative z-1">
+                    <div class="text-center mx-auto" style="max-width: 700px;">
+                        <span class="badge bg-white text-primary rounded-pill px-3 py-2 mb-3 shadow-sm fw-semibold tracking-wide">
+                            <i class="bi bi-stars me-1"></i> WELCOME 
+                        </span>
+                        <h1 id="eventTitle" class="display-4 fw-bold mb-2 text-white text-shadow">Event Gallery</h1>
+                        <p class="lead text-white-50 mb-5" id="clientNameDisplay">Welcome to your memories</p>
+                        
+                        <div id="heroButtons" class="d-flex justify-content-center gap-3 flex-wrap">
+                            <button id="btnSelfie" class="btn btn-glass btn-lg" onclick="document.getElementById('selfieInput').click()">
+                                <i class="bi bi-upload me-2"></i> Upload Selfie
+                            </button>
+                            <button class="btn btn-glass-outline btn-lg" id="startCamBtn">
+                                <i class="bi bi-camera me-2"></i> Camera
+                            </button>
+                            <button class="btn btn-success-soft btn-lg d-none" id="downloadZipBtn" onclick="downloadAllZip()">
+                                <i class="bi bi-cloud-download-fill me-2"></i> Download All
+                            </button>
+                            <input type="file" id="selfieInput" accept="image/*" class="d-none">
+                        </div>
+
+                        <div id="deleteModeHeader" class="mt-4 d-none">
+                            <div class="glass-alert-danger">
+                                <i class="bi bi-trash3-fill me-2"></i> <strong>Delete Mode Active:</strong> Select photos to remove.
+                            </div>
+                        </div>
+
+                        <div class="camera-wrapper mt-4 rounded-4 overflow-hidden shadow-lg" id="cameraContainer">
+                            <button id="switchCamBtn" class="switch-cam-btn" title="Switch Camera">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </button>
+
+                            <video id="webcam" autoplay muted playsinline></video>
+                            
+                            <div class="camera-controls bg-dark p-3">
+                                <button class="btn btn-primary w-100 py-2 rounded-pill fw-bold" id="snapBtn">Take Photo & Search</button>
+                                <button class="btn btn-sm btn-link text-white-50 text-decoration-none mt-2" id="closeCamBtn">Cancel</button>
+                            </div>
+                        </div>
+                        
+                        <div id="searchingMsg" class="mt-4 d-none">
+                            <div class="spinner-border text-white spinner-border-sm" role="status"></div>
+                            <span class="ms-2 text-white" id="scanningText">Scanning faces...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="container py-5 min-vh-50">
+                <div class="text-center mb-5 d-none animate-fade-in" id="referenceSection">
+                    <div class="d-inline-block position-relative">
+                        <img id="userImg" class="preview-box shadow-lg">
+                        <span class="position-absolute bottom-0 start-100 translate-middle badge rounded-pill bg-success border border-white">
+                            <i class="bi bi-check-lg"></i>
+                        </span>
+                    </div>
+                    <h5 id="matchCount" class="text-dark fw-bold mt-3 mb-1"></h5>
+                    <button class="btn btn-link text-muted text-decoration-none btn-sm" onclick="location.reload()">Try Another Photo</button>
+                </div>
+
+                <div class="row g-3 g-md-4" id="resultsGrid"></div>
+            </section>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <div class="container text-center">
+            <p class="m-0 tiny text-muted">
+                Designed by <a href="https://www.mjsmartapps.xyz" target="_blank" class="footer-brand">MJ SMART APPS</a>
+            </p>
+        </div>
+    </footer>
+
+    <div id="deleteActionBar" class="delete-action-bar glass-morphism">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <span class="bg-danger text-white rounded-circle p-2 me-3" style="width: 40px; height: 40px; display:grid; place-items:center;">
+                    <i class="bi bi-trash-fill"></i>
+                </span>
+                <div>
+                    <h6 class="mb-0 fw-bold text-danger"><span id="selectedCount">0</span> Selected</h6>
+                    <small class="text-muted">Review before submitting</small>
+                </div>
+            </div>
+            <button id="btnSubmitDelete" class="btn btn-danger rounded-pill px-4 shadow-sm" onclick="submitDeletionRequest()">
+                Submit Request
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script type="module" src="index.js?v=1.0"></script>
+</body>
+</html>
