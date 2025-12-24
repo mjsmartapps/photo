@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MJ SMART APPS - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link rel="stylesheet" href="admin.css"> 
+</head>
+<body>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div id="mediaLightbox" class="lightbox-overlay" onclick="closeLightbox(event)">
+        <i class="bi bi-x-lg lightbox-close" onclick="closeLightbox(event)"></i>
+        
+        <button class="lightbox-nav prev" onclick="changeSlide(-1)"><i class="bi bi-chevron-left"></i></button>
+        <button class="lightbox-nav next" onclick="changeSlide(1)"><i class="bi bi-chevron-right"></i></button>
+
+        <div id="lightboxContainer" class="d-flex justify-content-center align-items-center w-100 h-100">
+            </div>
+    </div>
+
+    <div id="loginView" class="login-wrapper">
+        <div class="login-container text-center">
+            <h3 class="mb-4 fw-bold">Admin Portal</h3>
+            <input type="email" id="emailInput" class="form-control mb-3" placeholder="Email">
+            <input type="password" id="passInput" class="form-control mb-4" placeholder="Password">
+            <button id="btnLogin" class="btn btn-primary w-100">Sign In</button>
+            <p id="loginError" class="text-danger mt-3 small"></p>
+        </div>
+    </div>
+
+    <div id="dashboardView" class="hidden">
+        <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+        <div class="sidebar d-flex flex-column" id="adminSidebar">
+            <div class="sidebar-brand">
+                <i class="bi bi-camera-fill text-accent me-2"></i>MJ STUDIO
+                <button class="btn btn-sm text-secondary d-lg-none ms-auto" onclick="toggleSidebar()"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="flex-grow-1 px-3">
+                <a onclick="switchView('home'); toggleSidebar()" id="nav-home" class="sidebar-link active mb-2"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a>
+                <a onclick="switchView('clients'); toggleSidebar()" id="nav-clients" class="sidebar-link"><i class="bi bi-people-fill"></i> Clients</a>
+                <a onclick="switchView('storage'); toggleSidebar()" id="nav-storage" class="sidebar-link"><i class="bi bi-hdd-fill"></i> Storage History</a>
+            </div>
+            <div class="p-3 border-top border-secondary border-opacity-10">
+                <button id="btnLogout" class="btn btn-outline-danger w-100 btn-sm">Logout</button>
+            </div>
+        </div>
+
+        <div class="main-content-wrapper">
+            
+            <button class="btn btn-dark d-lg-none mb-4 border border-secondary border-opacity-25" onclick="toggleSidebar()">
+                <i class="bi bi-list me-2"></i>Menu
+            </button>
+
+            <div id="view-home" class="view-section active">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0">Dashboard Overview</h2>
+                    <span class="badge bg-success bg-opacity-10 text-success">System Online</span>
+                </div>
+                <div class="row g-4">
+                    <div class="col-xl-3 col-md-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Active Clients</div>
+                            <div class="stat-number" id="totalClientsCount">0</div>
+                            <i class="bi bi-people-fill stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Storage Used</div>
+                            <div class="stat-number text-accent" id="totalStorageUsed">0 MB</div>
+                            <i class="bi bi-hdd-network-fill stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="stat-card border-danger border-opacity-25 bg-danger bg-opacity-5">
+                            <div class="stat-label text-danger">Total Pending Payment</div>
+                            <div class="stat-number text-danger" id="dashboardPendingPayment">₹0.00</div>
+                            <i class="bi bi-cash-stack stat-icon text-danger opacity-25"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="stat-card">
+                            <div class="stat-label">AI Status</div>
+                            <div id="dashboardModelStatus" class="fs-4 mt-1 fw-bold text-warning">Loading...</div>
+                            <i class="bi bi-cpu-fill stat-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-clients" class="view-section">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0">Client Management</h2>
+                    <button class="btn btn-primary" onclick="window.openNewClientModal()">
+                        <i class="bi bi-plus-lg me-2"></i>New Client
+                    </button>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6 col-lg-5">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
+                            <input type="text" id="clientSearchInput" class="form-control" placeholder="Search by Name or Phone...">
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
+                            <input type="month" id="clientMonthFilter" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Client</th>
+                                    <th>Event</th>
+                                    <th>Phone</th>
+                                    <th>Images</th>
+                                    <th>Size</th>
+                                    <th style="min-width: 130px;">Actions</th>
+                                    <th style="min-width: 180px;">Generated Links & Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTableBody">
+                                <tr><td colspan="8" class="text-center text-muted py-5">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-storage" class="view-section">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0">Storage Analytics</h2>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6 col-lg-8">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
+                            <input type="text" id="storageSearch" class="form-control" placeholder="Search Client or Event Name...">
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
+                            <input type="month" id="storageMonthFilter" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row g-3 mb-4 justify-content-center">
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Upload Size</div>
+                            <div class="stat-number fs-4 text-info" id="storageViewTotalSize">0 MB</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Files Uploaded</div>
+                            <div class="stat-number fs-4 text-primary" id="storageViewTotalFiles">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Total Views</div>
+                            <div class="stat-number fs-4 text-success" id="storageViewTotalViews">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Total Downloads</div>
+                            <div class="stat-number fs-4 text-warning" id="storageViewTotalDownloads">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3 border-danger border-opacity-25 bg-danger bg-opacity-10">
+                            <div class="stat-label small text-danger">Pending Payment</div>
+                            <div class="stat-number fs-4 text-danger" id="storageViewPendingCost">₹0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg">
+                         <div class="stat-card p-3">
+                            <div class="stat-label small">Total Est. Cost</div>
+                            <div class="stat-number fs-4 text-white" id="storageViewTotalCost">₹0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="p-3 border-bottom border-secondary border-opacity-10">
+                        <h6 class="m-0 text-white fw-bold"><i class="bi bi-graph-up-arrow me-2"></i>Detailed History</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Event Name</th>
+                                    <th>Client</th>
+                                    <th>Date</th>
+                                    <th>Files</th>
+                                    <th>Views</th>
+                                    <th>Downloads</th>
+                                    <th>Size Used</th>
+                                    <th>Cost (Est.)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="storageHistoryBody">
+                                <tr><td colspan="8" class="text-center text-muted py-5">Loading Storage Data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-gallery" class="view-section">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 border-bottom border-secondary border-opacity-25 pb-3">
+                    <div>
+                        <h2 class="fw-bold m-0" id="galleryViewClientName">Client Gallery</h2>
+                        <div class="d-flex gap-2 text-secondary small mt-1 align-items-center">
+                            <span id="galleryViewEventName" class="badge bg-secondary bg-opacity-25">Event Name</span>
+                            <span class="text-secondary mx-1">•</span>
+                            <span>ID: <span id="galleryViewClientId"></span></span>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="btnDownloadZip" class="btn btn-outline-success" onclick="downloadGalleryZip()">
+                            <i class="bi bi-file-earmark-zip me-2"></i>Download ZIP
+                        </button>
+                        <button class="btn btn-outline-light" onclick="switchView('clients')">
+                            <i class="bi bi-arrow-left me-2"></i>Back to Clients
+                        </button>
+                    </div>
+                </div>
+
+                <div id="deleteRequestControls" class="alert alert-danger bg-opacity-10 border-danger d-flex justify-content-between align-items-center d-none mb-4">
+                     <div>
+                        <i class="bi bi-exclamation-circle-fill text-danger me-2"></i>
+                        <span class="text-danger fw-bold"><span id="delReqCount">0</span> Deletion Requests Found</span>
+                        <span class="text-white-50 small ms-2">Customer requested removal of these images.</span>
+                     </div>
+                     <button class="btn btn-danger btn-sm" id="btnProcessDelete" onclick="toggleDeleteFilter()">Review Requests</button>
+                </div>
+                
+                <div id="confirmDeletePanel" class="alert alert-warning bg-opacity-10 border-warning d-flex justify-content-between align-items-center d-none mb-4">
+                     <div>
+                        <i class="bi bi-trash-fill text-warning me-2"></i>
+                        <span class="text-warning fw-bold">Reviewing Deletion Requests</span>
+                     </div>
+                     <div class="d-flex gap-2">
+                        <button class="btn btn-outline-light btn-sm" onclick="cancelDeleteReview()">Cancel</button>
+                        <button class="btn btn-warning btn-sm" onclick="performPermanentDelete()">Confirm Permanent Delete</button>
+                     </div>
+                </div>
+
+                <div id="galleryGrid" class="gallery-grid">
+                    </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="modal fade" id="addClientModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title fw-bold">Create New Event</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4">
+                    <form id="addClientForm">
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Date</label><input type="date" id="clientDate" class="form-control"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Client Name</label><input type="text" id="clientName" class="form-control" placeholder="John Doe"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Event Name</label><input type="text" id="eventName" class="form-control" placeholder="Wedding"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold">Phone</label><input type="tel" id="clientPhone" class="form-control" placeholder="+91..."></div>
+                        </div>
+                        <div class="alert alert-info mt-4 mb-0 small border-0 bg-opacity-10 bg-info">
+                            <i class="bi bi-info-circle me-2"></i>Create the event first, then use "Add More" to upload photos.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-light border-0" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" id="btnSaveClient" onclick="saveClient()">Create Event</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addMorePhotosModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Add More Media</h5>
+                    <button class="btn-close btn-close-white" data-bs-dismiss="modal" id="btnAddMoreClose"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary small mb-3">Adding to: <span id="addMoreClientName" class="text-white fw-bold"></span></p>
+                    
+                    <div id="addMoreDropZone" class="upload-drop-zone" onclick="document.getElementById('addMoreInput').click()">
+                        <i class="bi bi-plus-circle-dotted display-4 text-accent"></i>
+                        <p class="text-white mt-2">Click to Add Photos/Videos</p>
+                        <input type="file" id="addMoreInput" class="d-none" multiple accept="image/*,video/*">
+                    </div>
+                    
+                    <div id="addMoreCountLabel" class="text-center mt-2 text-info small"></div>
+
+                    <div id="addMoreProgressContainer" class="mt-4" style="display:none;">
+                        <h6 class="text-secondary small fw-bold mb-2">Upload Queue</h6>
+                        <div id="uploadFileList" class="upload-file-list">
+                            </div>
+                        <div class="mt-3 text-end small text-secondary">
+                            Total Progress: <span id="globalUploadPercent" class="text-white fw-bold">0%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-light border-0" data-bs-dismiss="modal" id="btnAddMoreCancel">Close</button>
+                    <button class="btn btn-primary" id="btnAddMoreConfirm" onclick="confirmAddMore()" disabled>Start Upload</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editClientModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Edit Details</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4">
+                    <form id="editClientForm">
+                        <input type="hidden" id="editClientId">
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="editClientName" class="form-control"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Event</label><input type="text" id="editEventName" class="form-control"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Date</label><input type="date" id="editClientDate" class="form-control"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Phone</label><input type="tel" id="editClientPhone" class="form-control"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="updateClient()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content border-danger">
+                <div class="modal-header border-bottom border-secondary border-opacity-25 bg-danger bg-opacity-10">
+                    <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center p-4">
+                    <p class="mb-0">Are you sure? This will delete the client and all associated photos permanently.</p>
+                </div>
+                <div class="modal-footer justify-content-center border-top border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="performDeleteClient()">Yes, Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="lockedModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-danger">
+                <div class="modal-header border-danger bg-danger bg-opacity-10">
+                    <h5 class="modal-title text-danger fw-bold"><i class="bi bi-lock-fill me-2"></i>Access Restricted</h5>
+                </div>
+                <div class="modal-body text-center p-5">
+                    <i class="bi bi-shield-lock display-1 text-danger mb-4"></i>
+                    <h3 class="fw-bold mb-3" id="lockedModalHeader">Service Suspended</h3>
+                    <p class="text-secondary mb-4" id="lockedModalText">
+                        This action is disabled because the month has been locked by the developer.
+                        <br><br>
+                        <span class="text-white bg-danger bg-opacity-25 px-3 py-1 rounded">Please contact your developer or Pay Month due.</span>
+                    </p>
+                    <button class="btn btn-outline-light" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script type="module" src="admin.js?v=2.0"></script>
+</body>
+</html>
