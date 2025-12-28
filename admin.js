@@ -46,6 +46,29 @@ function generateCleanId() {
     return autoId;
 }
 
+/* --- LOADER UTILITIES --- */
+
+// Toggle button state between text and studio shutter animation
+window.toggleButtonLoader = (btnId, isLoading) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    if (isLoading) {
+        // Save original text if not already saved
+        if (!btn.dataset.originalText) {
+            btn.dataset.originalText = btn.innerHTML;
+        }
+        btn.innerHTML = '<div class="studio-loader small"></div>';
+        btn.disabled = true;
+    } else {
+        // Restore original text
+        if (btn.dataset.originalText) {
+            btn.innerHTML = btn.dataset.originalText;
+        }
+        btn.disabled = false;
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
         editClientModalInstance = new bootstrap.Modal(document.getElementById('editClientModal'));
         addMoreModalInstance = new bootstrap.Modal(document.getElementById('addMorePhotosModal'));
@@ -141,10 +164,8 @@ window.downloadGalleryZip = async () => {
         return;
     }
 
-    const btn = document.getElementById('btnDownloadZip');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Zipping...';
+    // Toggle Button Loader
+    toggleButtonLoader('btnDownloadZip', true);
 
     try {
         const zip = new JSZip();
@@ -191,8 +212,7 @@ window.downloadGalleryZip = async () => {
     } catch (e) {
         showToast("Error creating ZIP.", "error");
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        toggleButtonLoader('btnDownloadZip', false);
     }
 }
 
@@ -286,9 +306,14 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-document.getElementById('btnLogin').addEventListener('click', () => {
-    signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passInput').value)
-        .catch(err => showToast(err.message, 'error'));
+document.getElementById('btnLogin').addEventListener('click', async () => {
+    toggleButtonLoader('btnLogin', true);
+    try {
+        await signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passInput').value);
+    } catch (err) {
+        showToast(err.message, 'error');
+        toggleButtonLoader('btnLogin', false); // Only re-enable on error, otherwise view switches
+    }
 });
 document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
 
@@ -382,6 +407,7 @@ function initClientsListener() {
 
 window.renderClientTable = () => {
     const tbody = document.getElementById('clientsTableBody');
+    // Don't clear immediately to allow smooth transition, or show loader if data is empty
     tbody.innerHTML = '';
     
     const searchTerm = document.getElementById('clientSearchInput').value.toLowerCase();
@@ -605,7 +631,8 @@ window.filterAndRenderStorage = () => {
     });
 };
 
-async function uploadToR2(file, clientId, index) {
+// Upload to R2 with Progress tracking via XHR
+async function uploadToR2(file, clientId, index, onProgress) {
     const ext = file.name.split('.').pop();
     const finalFileName = `${Date.now()}-${index}.${ext}`;
     const path = `rathnastudio/${clientId}/${finalFileName}`;
@@ -615,33 +642,66 @@ async function uploadToR2(file, clientId, index) {
     formData.append("path", path);
     const WORKER_URL = "https://cool-rice-5599.mjappkdl.workers.dev"; 
     
-    try {
-        const res = await fetch(WORKER_URL, { method: "POST", body: formData });
-        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-        const data = await res.json();
-        return data.url;
-    } catch (error) {
-        console.error("R2 Upload Error:", error);
-        throw error;
-    }
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", WORKER_URL);
+        
+        // Track Upload Progress
+        if (xhr.upload) {
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable && onProgress) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    onProgress(percent);
+                }
+            };
+        }
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    resolve(data.url);
+                } catch (e) {
+                    reject(new Error("Invalid response JSON"));
+                }
+            } else {
+                reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+            }
+        };
+
+        xhr.onerror = () => {
+            reject(new Error("Network Error"));
+        };
+
+        xhr.send(formData);
+    });
 }
 
 async function processAndUploadFiles(files, clientId) {
     const listContainer = document.getElementById('uploadFileList');
     const globalPercentLabel = document.getElementById('globalUploadPercent');
+    const uploadCountDisplay = document.getElementById('uploadCountDisplay');
     
     const fileArray = Array.from(files);
     const uiMap = new Map();
     
     listContainer.innerHTML = '';
+    const totalFiles = fileArray.length;
+    let completedCount = 0;
     
+    // Initialize count display
+    uploadCountDisplay.innerText = `0 / ${totalFiles}`;
+
     fileArray.forEach((file, idx) => {
         const id = `file-upload-${idx}`;
         const itemHtml = `
             <div class="upload-file-item" id="${id}">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="text-white small text-truncate" style="max-width: 60%;">${file.name}</span>
-                    <span class="text-secondary small speed-label" style="font-size: 0.75rem;">Waiting...</span>
+                    <span class="text-white small text-truncate" style="max-width: 50%;">${file.name}</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-secondary small speed-label" style="font-size: 0.75rem;">Waiting...</span>
+                        <span class="text-white small fw-bold percent-label" style="min-width: 35px; text-align: right;">0%</span>
+                    </div>
                 </div>
                 <div class="progress sm">
                     <div class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
@@ -688,13 +748,11 @@ async function processAndUploadFiles(files, clientId) {
         });
     };
 
-    let completedCount = 0;
-    const totalFiles = fileArray.length;
-
     const uploadSingle = async (file, index) => {
         const uiRow = uiMap.get(file);
         const bar = uiRow.querySelector('.progress-bar');
         const speedLabel = uiRow.querySelector('.speed-label');
+        const percentLabel = uiRow.querySelector('.percent-label');
         
         // Wait for network before starting this item
         if (!navigator.onLine) {
@@ -708,7 +766,9 @@ async function processAndUploadFiles(files, clientId) {
         bar.classList.remove('bg-secondary');
         bar.classList.add('bg-accent', 'progress-bar-striped', 'progress-bar-animated');
         speedLabel.innerText = "Processing...";
+        // For scan phase we just show visual activity but 0% upload
         bar.style.width = '30%'; 
+        percentLabel.innerText = '0%';
 
         try {
             const startTime = Date.now();
@@ -730,9 +790,8 @@ async function processAndUploadFiles(files, clientId) {
                 }
             }
             
-            bar.style.width = '60%';
             speedLabel.innerText = "Uploading...";
-
+            
             // Step 2 & 3: R2 Upload + Firestore Save (Network Critical - Retry Logic)
             let uploadSuccess = false;
             let retryCount = 0;
@@ -747,8 +806,15 @@ async function processAndUploadFiles(files, clientId) {
                         speedLabel.innerText = "Resuming upload...";
                     }
                     
-                    // R2 Upload
-                    const downloadURL = await uploadToR2(file, clientId, index);
+                    // R2 Upload with progress callback
+                    const downloadURL = await uploadToR2(file, clientId, index, (percent) => {
+                         // Map upload 0-100% to progress bar 30-100%
+                         // Formula: 30 + (percent * 0.7)
+                         const visualPercent = 30 + Math.round(percent * 0.7);
+                         bar.style.width = `${visualPercent}%`;
+                         percentLabel.innerText = `${percent}%`;
+                    });
+
                     const photoId = generateCleanId();
 
                     // DB Save
@@ -759,6 +825,12 @@ async function processAndUploadFiles(files, clientId) {
                         type: file.type, 
                         uploadedAt: Date.now()
                     });
+
+                    // Update Total Size Immediately for this file
+                    await updateDoc(doc(db, 'clients', clientId), {
+                        totalSize: increment(file.size),
+                        totalImages: increment(1)
+                    });
                     
                     uploadSuccess = true;
 
@@ -767,13 +839,14 @@ async function processAndUploadFiles(files, clientId) {
                     const speed = (file.size / 1024 / 1024) / duration;
                     
                     bar.style.width = '100%';
+                    percentLabel.innerText = '100%';
                     bar.classList.remove('progress-bar-striped', 'progress-bar-animated', 'bg-accent', 'bg-warning');
                     bar.classList.add('bg-success');
                     speedLabel.className = 'text-success small fw-bold';
                     speedLabel.innerText = `Done (${speed.toFixed(1)} MB/s)`;
 
                 } catch (err) {
-                    const isNetworkError = !navigator.onLine || (err.message && (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")));
+                    const isNetworkError = !navigator.onLine || (err.message && (err.message.includes("Network Error") || err.message.includes("Failed to fetch")));
 
                     if (isNetworkError) {
                         retryCount++;
@@ -816,6 +889,7 @@ async function processAndUploadFiles(files, clientId) {
             completedCount++;
             const totalPercent = Math.round((completedCount / totalFiles) * 100);
             globalPercentLabel.innerText = `${totalPercent}%`;
+            uploadCountDisplay.innerText = `${completedCount} / ${totalFiles}`;
         }
     };
 
@@ -857,7 +931,7 @@ window.saveClient = async () => {
     if(!date || !name || !eventName || !phone) 
         return showToast("Please fill all fields.", "warning");
 
-    document.getElementById('btnSaveClient').disabled = true;
+    toggleButtonLoader('btnSaveClient', true);
 
     try {
         const newClientId = generateCleanId();
@@ -878,7 +952,8 @@ window.saveClient = async () => {
         addClientModalInstance.hide();
         showToast("Event Created Successfully! Use 'Add More' to upload photos.", "success");
     } catch (error) { showToast("Error: " + error.message, "error"); }
-    document.getElementById('btnSaveClient').disabled = false;
+    
+    toggleButtonLoader('btnSaveClient', false);
 };
 
 window.triggerAddMore = (clientId, clientName) => {
@@ -893,6 +968,7 @@ window.triggerAddMore = (clientId, clientName) => {
     document.getElementById('btnAddMoreCancel').disabled = false;
     document.getElementById('btnAddMoreClose').disabled = false;
     document.getElementById('globalUploadPercent').innerText = "0%";
+    document.getElementById('uploadCountDisplay').innerText = "0 / 0";
     
     addMoreModalInstance.show();
 };
@@ -903,24 +979,16 @@ window.confirmAddMore = async () => {
     
     if(!files.length) return;
 
+    toggleButtonLoader('btnAddMoreConfirm', true);
     document.getElementById('addMoreDropZone').classList.add('disabled');
-    document.getElementById('btnAddMoreConfirm').disabled = true;
     document.getElementById('btnAddMoreCancel').disabled = true;
     document.getElementById('btnAddMoreClose').disabled = true;
     
     document.getElementById('addMoreProgressContainer').style.display = 'block';
 
-    let newSize = 0;
-    Array.from(files).forEach(f => newSize += f.size);
-
     await processAndUploadFiles(files, activeAddClientId);
 
-    const clientRef = doc(db, 'clients', activeAddClientId);
-    await updateDoc(clientRef, {
-        totalSize: increment(newSize),
-        totalImages: increment(files.length)
-    });
-
+    toggleButtonLoader('btnAddMoreConfirm', false);
     addMoreModalInstance.hide();
     showToast("Media added successfully!", "success");
 };
@@ -932,7 +1000,8 @@ window.prepareDeleteClient = (id) => {
 
 window.performDeleteClient = async () => {
     if (!pendingDeleteId) return;
-    deleteConfirmModalInstance.hide();
+    
+    toggleButtonLoader('btnFinalDeleteClient', true);
     const id = pendingDeleteId;
     
     try {
@@ -951,10 +1020,12 @@ window.performDeleteClient = async () => {
         
         await batch.commit();
         
+        deleteConfirmModalInstance.hide();
         showToast("Client deleted successfully.", "success");
     } catch(e) { 
         showToast("Delete failed: " + e.message, "error"); 
     }
+    toggleButtonLoader('btnFinalDeleteClient', false);
     pendingDeleteId = null;
 };
 
@@ -974,15 +1045,21 @@ window.triggerEdit = async (id) => {
 };
 
 window.updateClient = async () => {
+    toggleButtonLoader('btnUpdateClient', true);
     const id = document.getElementById('editClientId').value;
-    await updateDoc(doc(db, 'clients', id), {
-        name: document.getElementById('editClientName').value,
-        eventName: document.getElementById('editEventName').value,
-        date: document.getElementById('editClientDate').value,
-        phone: document.getElementById('editClientPhone').value
-    });
-    editClientModalInstance.hide();
-    showToast("Details updated successfully!", "success");
+    try {
+        await updateDoc(doc(db, 'clients', id), {
+            name: document.getElementById('editClientName').value,
+            eventName: document.getElementById('editEventName').value,
+            date: document.getElementById('editClientDate').value,
+            phone: document.getElementById('editClientPhone').value
+        });
+        editClientModalInstance.hide();
+        showToast("Details updated successfully!", "success");
+    } catch(e) {
+        showToast("Update failed: " + e.message, "error");
+    }
+    toggleButtonLoader('btnUpdateClient', false);
 };
 
 window.viewClientGallery = async (id) => {
@@ -996,7 +1073,8 @@ window.viewClientGallery = async (id) => {
     document.getElementById('galleryViewEventName').innerText = client ? client.eventName : 'Event';
     
     const grid = document.getElementById('galleryGrid');
-    grid.innerHTML = '<div class="d-flex justify-content-center w-100 py-5"><div class="spinner-border text-accent" role="status"></div></div>';
+    // Show Full View Studio Loader
+    grid.innerHTML = '<div class="d-flex justify-content-center w-100 py-5"><div class="studio-loader"></div></div>';
     
     const deleteControls = document.getElementById('deleteRequestControls');
     const confirmPanel = document.getElementById('confirmDeletePanel');
@@ -1050,6 +1128,12 @@ window.renderGalleryGrid = (photos) => {
         
         const wrapper = document.createElement('div');
         wrapper.className = 'gallery-item-wrapper';
+
+        // Add Individual Loading Overlay
+        const loaderOverlay = document.createElement('div');
+        loaderOverlay.className = 'gallery-item-loader';
+        loaderOverlay.innerHTML = '<div class="gallery-loader-bar"></div>';
+        wrapper.appendChild(loaderOverlay);
         
         let mediaEl;
         if (isVideo) {
@@ -1061,6 +1145,12 @@ window.renderGalleryGrid = (photos) => {
             mediaEl.playsInline = true;
             mediaEl.preload = "metadata";
             
+            // For video, we can remove loader when "loadeddata" fires
+            mediaEl.onloadeddata = () => {
+                loaderOverlay.style.opacity = '0';
+                setTimeout(() => loaderOverlay.remove(), 300);
+            };
+
             wrapper.onmouseenter = () => mediaEl.play().catch(e => {}); 
             wrapper.onmouseleave = () => { mediaEl.pause(); mediaEl.currentTime = 0; };
 
@@ -1073,6 +1163,12 @@ window.renderGalleryGrid = (photos) => {
             mediaEl.src = p.url;
             mediaEl.className = 'gallery-img';
             mediaEl.loading = "lazy";
+
+            // Remove loader when image loads
+            mediaEl.onload = () => {
+                loaderOverlay.style.opacity = '0';
+                setTimeout(() => loaderOverlay.remove(), 300);
+            };
         }
         
         if (isRequestedForDelete) {
@@ -1096,12 +1192,20 @@ window.toggleDeleteFilter = () => {
     const deleteControls = document.getElementById('deleteRequestControls');
     const confirmPanel = document.getElementById('confirmDeletePanel');
 
-    if (isDeleteFilterActive) {
-        deleteControls.classList.add('d-none');
-        confirmPanel.classList.remove('d-none');
-        const filtered = currentPhotosCache.filter(p => currentDeleteRequests.includes(p.url));
-        renderGalleryGrid(filtered);
-    }
+    // Show View Loader briefly for effect
+    const grid = document.getElementById('galleryGrid');
+    grid.innerHTML = '<div class="d-flex justify-content-center w-100 py-5"><div class="studio-loader"></div></div>';
+
+    setTimeout(() => {
+        if (isDeleteFilterActive) {
+            deleteControls.classList.add('d-none');
+            confirmPanel.classList.remove('d-none');
+            const filtered = currentPhotosCache.filter(p => currentDeleteRequests.includes(p.url));
+            renderGalleryGrid(filtered);
+        } else {
+             // Reset logic handled in cancelDeleteReview
+        }
+    }, 300); // Small delay to show loader
 };
 
 window.cancelDeleteReview = () => {
@@ -1116,9 +1220,7 @@ window.performPermanentDelete = async () => {
         
         if (!confirm(`Are you sure you want to permanently delete ${currentDeleteRequests.length} items? This cannot be undone.`)) return;
 
-        const btn = document.querySelector('#confirmDeletePanel button.btn-warning');
-        btn.disabled = true;
-        btn.innerText = 'Deleting...';
+        toggleButtonLoader('btnConfirmPermDelete', true);
 
         try {
             const photosToDelete = currentPhotosCache.filter(p => currentDeleteRequests.includes(p.url));
@@ -1142,16 +1244,14 @@ window.performPermanentDelete = async () => {
 
             showToast(`Successfully deleted ${deletedCount} items.`, "success");
             
-            btn.disabled = false;
-            btn.innerText = 'Confirm Permanent Delete';
             cancelDeleteReview();
             viewClientGallery(currentGalleryId); 
         
         } catch (error) {
             console.error(error);
             showToast("Error deleting items: " + error.message, "error");
-            btn.disabled = false;
         }
+        toggleButtonLoader('btnConfirmPermDelete', false);
 };
 
 window.copyToClipboard = (t) => {
