@@ -18,7 +18,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const STUDIO_NAME = "Rathna Studio";
+const STUDIO_NAME = "Karthick Studio";
 let rawData = {};
 let groupedData = {};
 let batchTarget = { monthKey: null, status: null, clientIds: [] };
