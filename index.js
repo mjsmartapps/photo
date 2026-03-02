@@ -466,7 +466,7 @@ window.downloadAllZip = async () => {
     progressText.innerText = "Initializing high-speed download...";
 
     const zip = new JSZip();
-    const folder = zip.folder("rathnastudio"); 
+    const folder = zip.folder("karthickstudio"); 
     const existingNames = new Set(); 
     let processedCount = 0;
     const totalFiles = currentMediaList.length;
