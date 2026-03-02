@@ -169,7 +169,7 @@ window.downloadGalleryZip = async () => {
 
     try {
         const zip = new JSZip();
-        const folder = zip.folder("rathnastudio");
+        const folder = zip.folder("karthickstudio");
         const existingNames = new Set();
         
         const promises = currentPhotosCache.map(async (photo) => {
@@ -635,7 +635,7 @@ window.filterAndRenderStorage = () => {
 async function uploadToR2(file, clientId, index, onProgress) {
     const ext = file.name.split('.').pop();
     const finalFileName = `${Date.now()}-${index}.${ext}`;
-    const path = `rathnastudio/${clientId}/${finalFileName}`;
+    const path = `karthickstudio/${clientId}/${finalFileName}`;
     
     const formData = new FormData();
     formData.append("file", file);
