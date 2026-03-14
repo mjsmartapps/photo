@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { 
     getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, onSnapshot, writeBatch, increment, deleteField 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB5jaPVkCwxXiMYhSn0uuW9QSMc-B5C9YY",
@@ -37,6 +37,10 @@ let currentPhotosCache = [];
 let displayedPhotos = []; 
 let currentLightboxIndex = 0;
 
+// Auth Variables
+let currentUserUid = null;
+let confirmationResult = null;
+
 function generateCleanId() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let autoId = '';
@@ -48,20 +52,17 @@ function generateCleanId() {
 
 /* --- LOADER UTILITIES --- */
 
-// Toggle button state between text and studio shutter animation
 window.toggleButtonLoader = (btnId, isLoading) => {
     const btn = document.getElementById(btnId);
     if (!btn) return;
 
     if (isLoading) {
-        // Save original text if not already saved
         if (!btn.dataset.originalText) {
             btn.dataset.originalText = btn.innerHTML;
         }
         btn.innerHTML = '<div class="studio-loader small"></div>';
         btn.disabled = true;
     } else {
-        // Restore original text
         if (btn.dataset.originalText) {
             btn.innerHTML = btn.dataset.originalText;
         }
@@ -70,6 +71,28 @@ window.toggleButtonLoader = (btnId, isLoading) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+        // UI Adaptations for Phone Auth (converting existing Email/Pass form)
+        const phoneInput = document.getElementById('emailInput');
+        if (phoneInput) {
+            phoneInput.type = "tel";
+            phoneInput.placeholder = "Phone Number (+91...)";
+        }
+        const otpInput = document.getElementById('passInput');
+        if (otpInput) {
+            otpInput.type = "number";
+            otpInput.placeholder = "Enter 6-digit OTP";
+            otpInput.style.display = 'none'; 
+        }
+        const btnLogin = document.getElementById('btnLogin');
+        if (btnLogin) {
+            btnLogin.innerText = "Send OTP";
+        }
+
+        // Add Recaptcha container implicitly
+        const recaptchaDiv = document.createElement('div');
+        recaptchaDiv.id = 'recaptcha-container';
+        document.body.appendChild(recaptchaDiv);
+
         editClientModalInstance = new bootstrap.Modal(document.getElementById('editClientModal'));
         addMoreModalInstance = new bootstrap.Modal(document.getElementById('addMorePhotosModal'));
         deleteConfirmModalInstance = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
@@ -164,12 +187,11 @@ window.downloadGalleryZip = async () => {
         return;
     }
 
-    // Toggle Button Loader
     toggleButtonLoader('btnDownloadZip', true);
 
     try {
         const zip = new JSZip();
-        const folder = zip.folder("karthickstudio");
+        const folder = zip.folder("mjsmartstudio");
         const existingNames = new Set();
         
         const promises = currentPhotosCache.map(async (photo) => {
@@ -296,26 +318,68 @@ window.closeLightbox = (e) => {
 
 onAuthStateChanged(auth, (user) => {
     if (user) {
+        currentUserUid = user.uid;
         document.getElementById('loginView').classList.add('hidden');
         document.getElementById('dashboardView').classList.remove('hidden');
         initClientsListener();
         initSettingsListener(); 
     } else {
+        currentUserUid = null;
         document.getElementById('dashboardView').classList.add('hidden');
         document.getElementById('loginView').classList.remove('hidden');
     }
 });
 
 document.getElementById('btnLogin').addEventListener('click', async () => {
+    const phoneInput = document.getElementById('emailInput');
+    const otpInput = document.getElementById('passInput');
+    const btnLogin = document.getElementById('btnLogin');
+    
     toggleButtonLoader('btnLogin', true);
+    
     try {
-        await signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passInput').value);
+        if (!confirmationResult) {
+            if (!window.recaptchaVerifier) {
+                window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                    'size': 'invisible'
+                });
+            }
+            
+            const phoneNumber = phoneInput.value.trim();
+            if (!phoneNumber) throw new Error("Please enter a phone number");
+            
+            // Default to India country code if no '+' is provided
+            const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+91' + phoneNumber;
+
+            confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
+            
+            showToast("OTP sent successfully", 'success');
+            otpInput.style.display = 'block';
+            btnLogin.dataset.originalText = "Verify OTP"; 
+            toggleButtonLoader('btnLogin', false); 
+        } else {
+            const otp = otpInput.value.trim();
+            if (!otp) throw new Error("Please enter the OTP");
+            
+            await confirmationResult.confirm(otp);
+            // reset UI state
+            confirmationResult = null;
+            otpInput.style.display = 'none';
+            btnLogin.dataset.originalText = "Send OTP"; 
+            phoneInput.value = '';
+            otpInput.value = '';
+        }
     } catch (err) {
         showToast(err.message, 'error');
-        toggleButtonLoader('btnLogin', false); // Only re-enable on error, otherwise view switches
+        toggleButtonLoader('btnLogin', false);
     }
 });
-document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
+
+document.getElementById('btnLogout').addEventListener('click', () => {
+    signOut(auth).then(() => {
+        window.location.reload(); 
+    });
+});
 
 Promise.all([
     faceapi.nets.ssdMobilenetv1.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
@@ -334,7 +398,9 @@ function initSettingsListener() {
 }
 
 function initClientsListener() {
-    onSnapshot(collection(db, 'clients'), (snapshot) => {
+    if (!currentUserUid) return;
+
+    onSnapshot(collection(db, 'users', currentUserUid, 'clients'), (snapshot) => {
         window.allClientsData = []; 
         if (!snapshot.empty) {
             document.getElementById('totalClientsCount').innerText = snapshot.size;
@@ -407,7 +473,6 @@ function initClientsListener() {
 
 window.renderClientTable = () => {
     const tbody = document.getElementById('clientsTableBody');
-    // Don't clear immediately to allow smooth transition, or show loader if data is empty
     tbody.innerHTML = '';
     
     const searchTerm = document.getElementById('clientSearchInput').value.toLowerCase();
@@ -463,7 +528,7 @@ window.renderClientTable = () => {
                                 onchange="toggleLinkStatus('${key}', 'ai', this.checked)">
                         </div>
                         <button class="btn btn-sm btn-outline-primary flex-grow-1 text-start py-0 px-2" style="height: 24px; font-size: 0.8rem;"
-                            onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}')">
+                            onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}&uid=${currentUserUid}')">
                             <i class="bi bi-robot me-1"></i>AI
                         </button>
                     </div>
@@ -474,7 +539,7 @@ window.renderClientTable = () => {
                                 onchange="toggleLinkStatus('${key}', 'gallery', this.checked)">
                         </div>
                         <button class="btn btn-sm btn-outline-info flex-grow-1 text-start py-0 px-2" style="height: 24px; font-size: 0.8rem;"
-                            onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}&view=all')">
+                            onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}&view=all&uid=${currentUserUid}')">
                             <i class="bi bi-grid me-1"></i>Gallery
                         </button>
                     </div>
@@ -485,7 +550,7 @@ window.renderClientTable = () => {
                                 onchange="toggleLinkStatus('${key}', 'delete', this.checked)">
                         </div>
                         <button class="btn btn-sm btn-outline-danger flex-grow-1 text-start py-0 px-2" style="height: 24px; font-size: 0.8rem;"
-                            onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}&view=delete')">
+                            onclick="if(!checkLock(${isLocked})) copyToClipboard('${baseUrl}?eventId=${key}&view=delete&uid=${currentUserUid}')">
                             <i class="bi bi-trash-fill me-1"></i>Del. Link
                         </button>
                     </div>
@@ -498,7 +563,7 @@ window.renderClientTable = () => {
 
 window.toggleLinkStatus = async (clientId, type, status) => {
     try {
-        const clientRef = doc(db, 'clients', clientId);
+        const clientRef = doc(db, 'users', currentUserUid, 'clients', clientId);
         await updateDoc(clientRef, {
             [`linkStatus.${type}`]: status
         });
@@ -631,11 +696,11 @@ window.filterAndRenderStorage = () => {
     });
 };
 
-// Upload to R2 with Progress tracking via XHR
 async function uploadToR2(file, clientId, index, onProgress) {
     const ext = file.name.split('.').pop();
     const finalFileName = `${Date.now()}-${index}.${ext}`;
-    const path = `karthickstudio/${clientId}/${finalFileName}`;
+    // Structure R2 path with user ID for strict multi-tenancy
+    const path = `mjsmartstudio/${currentUserUid}/${clientId}/${finalFileName}`;
     
     const formData = new FormData();
     formData.append("file", file);
@@ -646,7 +711,6 @@ async function uploadToR2(file, clientId, index, onProgress) {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", WORKER_URL);
         
-        // Track Upload Progress
         if (xhr.upload) {
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable && onProgress) {
@@ -689,7 +753,6 @@ async function processAndUploadFiles(files, clientId) {
     const totalFiles = fileArray.length;
     let completedCount = 0;
     
-    // Initialize count display
     uploadCountDisplay.innerText = `0 / ${totalFiles}`;
 
     fileArray.forEach((file, idx) => {
@@ -712,14 +775,12 @@ async function processAndUploadFiles(files, clientId) {
         uiMap.set(file, document.getElementById(id));
     });
 
-    // --- Network Event Listeners for UI Updates on Pending Items ---
     const updatePendingStatus = () => {
         fileArray.forEach(file => {
             const uiRow = uiMap.get(file);
             const speedLabel = uiRow.querySelector('.speed-label');
             const bar = uiRow.querySelector('.progress-bar');
             
-            // Only update if it's currently waiting
             if (bar.classList.contains('bg-secondary') && bar.style.width === '0%') {
                 if (navigator.onLine) {
                     speedLabel.innerText = "Waiting...";
@@ -736,7 +797,6 @@ async function processAndUploadFiles(files, clientId) {
     window.addEventListener('offline', updatePendingStatus);
     updatePendingStatus();
 
-    // --- Network Helper ---
     const waitForNetwork = () => {
         if (navigator.onLine) return Promise.resolve();
         return new Promise(resolve => {
@@ -754,7 +814,6 @@ async function processAndUploadFiles(files, clientId) {
         const speedLabel = uiRow.querySelector('.speed-label');
         const percentLabel = uiRow.querySelector('.percent-label');
         
-        // Wait for network before starting this item
         if (!navigator.onLine) {
             bar.style.width = '0%';
             speedLabel.innerText = "Waiting for network...";
@@ -766,7 +825,6 @@ async function processAndUploadFiles(files, clientId) {
         bar.classList.remove('bg-secondary');
         bar.classList.add('bg-accent', 'progress-bar-striped', 'progress-bar-animated');
         speedLabel.innerText = "Processing...";
-        // For scan phase we just show visual activity but 0% upload
         bar.style.width = '30%'; 
         percentLabel.innerText = '0%';
 
@@ -774,7 +832,6 @@ async function processAndUploadFiles(files, clientId) {
             const startTime = Date.now();
             let descriptors = [];
             
-            // Step 1: Face Detection
             if (file.type.startsWith('image/') && typeof faceapi !== 'undefined') {
                 speedLabel.innerText = "Scanning faces...";
                 try {
@@ -792,7 +849,6 @@ async function processAndUploadFiles(files, clientId) {
             
             speedLabel.innerText = "Uploading...";
             
-            // Step 2 & 3: R2 Upload + Firestore Save (Network Critical - Retry Logic)
             let uploadSuccess = false;
             let retryCount = 0;
             
@@ -806,10 +862,7 @@ async function processAndUploadFiles(files, clientId) {
                         speedLabel.innerText = "Resuming upload...";
                     }
                     
-                    // R2 Upload with progress callback
                     const downloadURL = await uploadToR2(file, clientId, index, (percent) => {
-                         // Map upload 0-100% to progress bar 30-100%
-                         // Formula: 30 + (percent * 0.7)
                          const visualPercent = 30 + Math.round(percent * 0.7);
                          bar.style.width = `${visualPercent}%`;
                          percentLabel.innerText = `${percent}%`;
@@ -817,8 +870,7 @@ async function processAndUploadFiles(files, clientId) {
 
                     const photoId = generateCleanId();
 
-                    // DB Save
-                    await setDoc(doc(db, 'clients', clientId, 'media', photoId), {
+                    await setDoc(doc(db, 'users', currentUserUid, 'clients', clientId, 'media', photoId), {
                         url: downloadURL,
                         descriptors: descriptors,
                         size: file.size,
@@ -826,15 +878,13 @@ async function processAndUploadFiles(files, clientId) {
                         uploadedAt: Date.now()
                     });
 
-                    // Update Total Size Immediately for this file
-                    await updateDoc(doc(db, 'clients', clientId), {
+                    await updateDoc(doc(db, 'users', currentUserUid, 'clients', clientId), {
                         totalSize: increment(file.size),
                         totalImages: increment(1)
                     });
                     
                     uploadSuccess = true;
 
-                    // Calc Speed
                     const duration = (Date.now() - startTime) / 1000;
                     const speed = (file.size / 1024 / 1024) / duration;
                     
@@ -854,7 +904,6 @@ async function processAndUploadFiles(files, clientId) {
                         bar.classList.add('bg-warning'); 
                         speedLabel.className = 'text-warning small fw-bold';
                         
-                        // Shorter delay for first retry (1s) to feel snappier
                         const delay = retryCount === 1 ? 1000 : 3000;
                         speedLabel.innerText = `Connection unstable. Retrying in ${delay/1000}s...`;
                         
@@ -893,31 +942,25 @@ async function processAndUploadFiles(files, clientId) {
         }
     };
 
-    // Sliding Window Concurrency
     const CONCURRENCY_LIMIT = 5; 
     const executing = [];
     
     for (let i = 0; i < fileArray.length; i++) {
         const file = fileArray[i];
         
-        // Wrap the upload promise so we can track it
         const p = uploadSingle(file, i).then(() => {
-            // Once finished, remove self from the executing array
             executing.splice(executing.indexOf(p), 1);
         });
         
         executing.push(p);
         
-        // If we hit the limit, wait for the fastest one to finish before starting the next
         if (executing.length >= CONCURRENCY_LIMIT) {
             await Promise.race(executing);
         }
     }
     
-    // Wait for remaining active uploads
     await Promise.all(executing);
     
-    // Clean up listeners
     window.removeEventListener('online', updatePendingStatus);
     window.removeEventListener('offline', updatePendingStatus);
 }
@@ -936,7 +979,7 @@ window.saveClient = async () => {
     try {
         const newClientId = generateCleanId();
         
-        await setDoc(doc(db, 'clients', newClientId), {
+        await setDoc(doc(db, 'users', currentUserUid, 'clients', newClientId), {
             date, name, eventName, phone,
             totalSize: 0,
             totalImages: 0,
@@ -1005,7 +1048,7 @@ window.performDeleteClient = async () => {
     const id = pendingDeleteId;
     
     try {
-        const mediaCol = collection(db, 'clients', id, 'media');
+        const mediaCol = collection(db, 'users', currentUserUid, 'clients', id, 'media');
         const snapshot = await getDocs(mediaCol);
         
         const batch = writeBatch(db);
@@ -1016,7 +1059,7 @@ window.performDeleteClient = async () => {
             count++;
         });
         
-        batch.delete(doc(db, 'clients', id));
+        batch.delete(doc(db, 'users', currentUserUid, 'clients', id));
         
         await batch.commit();
         
@@ -1030,7 +1073,7 @@ window.performDeleteClient = async () => {
 };
 
 window.triggerEdit = async (id) => {
-    const docRef = doc(db, 'clients', id);
+    const docRef = doc(db, 'users', currentUserUid, 'clients', id);
     const snap = await getDoc(docRef);
     
     if (snap.exists()) {
@@ -1048,7 +1091,7 @@ window.updateClient = async () => {
     toggleButtonLoader('btnUpdateClient', true);
     const id = document.getElementById('editClientId').value;
     try {
-        await updateDoc(doc(db, 'clients', id), {
+        await updateDoc(doc(db, 'users', currentUserUid, 'clients', id), {
             name: document.getElementById('editClientName').value,
             eventName: document.getElementById('editEventName').value,
             date: document.getElementById('editClientDate').value,
@@ -1073,7 +1116,6 @@ window.viewClientGallery = async (id) => {
     document.getElementById('galleryViewEventName').innerText = client ? client.eventName : 'Event';
     
     const grid = document.getElementById('galleryGrid');
-    // Show Full View Studio Loader
     grid.innerHTML = '<div class="d-flex justify-content-center w-100 py-5"><div class="studio-loader"></div></div>';
     
     const deleteControls = document.getElementById('deleteRequestControls');
@@ -1091,7 +1133,7 @@ window.viewClientGallery = async (id) => {
     switchView('gallery');
     
     try {
-        const mediaCol = collection(db, 'clients', id, 'media');
+        const mediaCol = collection(db, 'users', currentUserUid, 'clients', id, 'media');
         const snap = await getDocs(mediaCol);
         
         currentPhotosCache = [];
@@ -1129,7 +1171,6 @@ window.renderGalleryGrid = (photos) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'gallery-item-wrapper';
 
-        // Add Individual Loading Overlay
         const loaderOverlay = document.createElement('div');
         loaderOverlay.className = 'gallery-item-loader';
         loaderOverlay.innerHTML = '<div class="gallery-loader-bar"></div>';
@@ -1145,7 +1186,6 @@ window.renderGalleryGrid = (photos) => {
             mediaEl.playsInline = true;
             mediaEl.preload = "metadata";
             
-            // For video, we can remove loader when "loadeddata" fires
             mediaEl.onloadeddata = () => {
                 loaderOverlay.style.opacity = '0';
                 setTimeout(() => loaderOverlay.remove(), 300);
@@ -1164,7 +1204,6 @@ window.renderGalleryGrid = (photos) => {
             mediaEl.className = 'gallery-img';
             mediaEl.loading = "lazy";
 
-            // Remove loader when image loads
             mediaEl.onload = () => {
                 loaderOverlay.style.opacity = '0';
                 setTimeout(() => loaderOverlay.remove(), 300);
@@ -1192,7 +1231,6 @@ window.toggleDeleteFilter = () => {
     const deleteControls = document.getElementById('deleteRequestControls');
     const confirmPanel = document.getElementById('confirmDeletePanel');
 
-    // Show View Loader briefly for effect
     const grid = document.getElementById('galleryGrid');
     grid.innerHTML = '<div class="d-flex justify-content-center w-100 py-5"><div class="studio-loader"></div></div>';
 
@@ -1203,9 +1241,9 @@ window.toggleDeleteFilter = () => {
             const filtered = currentPhotosCache.filter(p => currentDeleteRequests.includes(p.url));
             renderGalleryGrid(filtered);
         } else {
-             // Reset logic handled in cancelDeleteReview
+             // Handled in cancelDeleteReview
         }
-    }, 300); // Small delay to show loader
+    }, 300); 
 };
 
 window.cancelDeleteReview = () => {
@@ -1229,12 +1267,12 @@ window.performPermanentDelete = async () => {
             const batch = writeBatch(db);
             
             photosToDelete.forEach(p => {
-                const photoRef = doc(db, 'clients', currentGalleryId, 'media', p.key);
+                const photoRef = doc(db, 'users', currentUserUid, 'clients', currentGalleryId, 'media', p.key);
                 batch.delete(photoRef);
                 deletedCount++;
             });
 
-            const clientRef = doc(db, 'clients', currentGalleryId);
+            const clientRef = doc(db, 'users', currentUserUid, 'clients', currentGalleryId);
             batch.update(clientRef, {
                 deletionRequests: deleteField(),
                 totalImages: increment(-deletedCount)
