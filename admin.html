@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MJ SMART STUDIO</title>
+    <title>Studio Admin Portal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <link rel="stylesheet" href="admin.css"> 
 </head>
 <body>
+
+    <div class="lens-flare flare-1"></div>
+    <div class="lens-flare flare-2"></div>
+    <div class="lens-flare flare-3"></div>
 
     <div class="toast-container" id="toastContainer"></div>
 
@@ -23,15 +26,15 @@
         <button class="lightbox-nav next" onclick="changeSlide(1)"><i class="bi bi-chevron-right"></i></button>
 
         <div id="lightboxContainer" class="d-flex justify-content-center align-items-center w-100 h-100">
-            </div>
+        </div>
     </div>
 
     <div id="loginView" class="login-wrapper">
         <div class="login-container text-center">
-            <h3 class="mb-4 fw-bold">Admin Portal</h3>
+            <h3 class="mb-4 text-accent">STUDIO LOGIN</h3>
             <input type="tel" id="emailInput" class="form-control mb-3" placeholder="Phone Number (+91...)">
             <input type="number" id="passInput" class="form-control mb-4" placeholder="Enter 6-digit OTP" style="display: none;">
-            <button id="btnLogin" class="btn btn-primary w-100">Send OTP</button>
+            <button id="btnLogin" class="btn btn-primary w-100 text-uppercase">Send OTP</button>
             <p id="loginError" class="text-danger mt-3 small"></p>
         </div>
     </div>
@@ -41,7 +44,7 @@
 
         <div class="sidebar d-flex flex-column" id="adminSidebar">
             <div class="sidebar-brand">
-                <i class="bi bi-camera-fill text-accent me-2"></i>MJ SMART STUDIO
+                <i class="bi bi-camera-fill"></i><span class="text-white">MJ SMART</span> STUDIO
                 <button class="btn btn-sm text-secondary d-lg-none ms-auto" onclick="toggleSidebar()"><i class="bi bi-x-lg"></i></button>
             </div>
             <div class="flex-grow-1 px-3">
@@ -49,21 +52,21 @@
                 <a onclick="switchView('clients'); toggleSidebar()" id="nav-clients" class="sidebar-link"><i class="bi bi-people-fill"></i> Clients</a>
                 <a onclick="switchView('storage'); toggleSidebar()" id="nav-storage" class="sidebar-link"><i class="bi bi-hdd-fill"></i> Storage History</a>
             </div>
-            <div class="p-3 border-top border-secondary border-opacity-10">
-                <button id="btnLogout" class="btn btn-outline-danger w-100 btn-sm">Logout</button>
+            <div class="p-4 border-top border-secondary border-opacity-10">
+                <button id="btnLogout" class="btn btn-outline-light w-100 btn-sm text-uppercase fw-bold"><i class="bi bi-box-arrow-right me-2"></i>Logout</button>
             </div>
         </div>
 
         <div class="main-content-wrapper">
             
-            <button class="btn btn-dark d-lg-none mb-4 border border-secondary border-opacity-25" onclick="toggleSidebar()">
+            <button class="btn btn-outline-light d-lg-none mb-4" onclick="toggleSidebar()">
                 <i class="bi bi-list me-2"></i>Menu
             </button>
 
             <div id="view-home" class="view-section active">
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <h2 class="fw-bold m-0">Dashboard Overview</h2>
-                    <span class="badge bg-success bg-opacity-10 text-success">System Online</span>
+                <div class="d-flex justify-content-between align-items-center mb-5 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0 text-white">Dashboard Overview</h2>
+                    <span class="badge border border-success text-success bg-dark bg-opacity-50 px-3 py-2 rounded-pill"><i class="bi bi-record-circle-fill me-1"></i> System Online</span>
                 </div>
                 <div class="row g-4">
                     <div class="col-xl-3 col-md-6">
@@ -81,7 +84,7 @@
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
-                        <div class="stat-card border-danger border-opacity-25 bg-danger bg-opacity-5">
+                        <div class="stat-card border-danger border-opacity-25" style="background: rgba(220, 38, 38, 0.05);">
                             <div class="stat-label text-danger">Total Pending Payment</div>
                             <div class="stat-number text-danger" id="dashboardPendingPayment">₹0.00</div>
                             <i class="bi bi-cash-stack stat-icon text-danger opacity-25"></i>
@@ -89,7 +92,7 @@
                     </div>
                     <div class="col-xl-3 col-md-6">
                         <div class="stat-card">
-                            <div class="stat-label">AI Status</div>
+                            <div class="stat-label">AI Face Engine</div>
                             <div id="dashboardModelStatus" class="fs-4 mt-1 fw-bold text-warning">Loading...</div>
                             <i class="bi bi-cpu-fill stat-icon"></i>
                         </div>
@@ -98,9 +101,9 @@
             </div>
 
             <div id="view-clients" class="view-section">
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <h2 class="fw-bold m-0">Client Management</h2>
-                    <button class="btn btn-primary" onclick="window.openNewClientModal()">
+                <div class="d-flex justify-content-between align-items-center mb-5 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0 text-white">Client Management</h2>
+                    <button class="btn btn-primary rounded-pill px-4" onclick="window.openNewClientModal()">
                         <i class="bi bi-plus-lg me-2"></i>New Client
                     </button>
                 </div>
@@ -108,14 +111,14 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-6 col-lg-5">
                         <div class="input-group">
-                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
-                            <input type="text" id="clientSearchInput" class="form-control" placeholder="Search by Name or Phone...">
+                            <span class="input-group-text bg-transparent border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
+                            <input type="text" id="clientSearchInput" class="form-control border-secondary border-opacity-25" placeholder="Search by Name or Phone...">
                         </div>
                     </div>
                     <div class="col-md-6 col-lg-4">
                         <div class="input-group">
-                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
-                            <input type="month" id="clientMonthFilter" class="form-control">
+                            <span class="input-group-text bg-transparent border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
+                            <input type="month" id="clientMonthFilter" class="form-control border-secondary border-opacity-25" style="color-scheme: dark;">
                         </div>
                     </div>
                 </div>
@@ -148,21 +151,21 @@
             </div>
 
             <div id="view-storage" class="view-section">
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <h2 class="fw-bold m-0">Storage Analytics</h2>
+                <div class="d-flex justify-content-between align-items-center mb-5 flex-wrap gap-2">
+                    <h2 class="fw-bold m-0 text-white">Storage Analytics</h2>
                 </div>
 
                 <div class="row g-3 mb-4">
                     <div class="col-md-6 col-lg-8">
                         <div class="input-group">
-                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
-                            <input type="text" id="storageSearch" class="form-control" placeholder="Search Client or Event Name...">
+                            <span class="input-group-text bg-transparent border-secondary border-opacity-25 text-secondary"><i class="bi bi-search"></i></span>
+                            <input type="text" id="storageSearch" class="form-control border-secondary border-opacity-25" placeholder="Search Client or Event Name...">
                         </div>
                     </div>
                     <div class="col-md-6 col-lg-4">
                         <div class="input-group">
-                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
-                            <input type="month" id="storageMonthFilter" class="form-control">
+                            <span class="input-group-text bg-transparent border-secondary border-opacity-25 text-secondary"><i class="bi bi-calendar-month"></i></span>
+                            <input type="month" id="storageMonthFilter" class="form-control border-secondary border-opacity-25" style="color-scheme: dark;">
                         </div>
                     </div>
                 </div>
@@ -193,7 +196,7 @@
                         </div>
                     </div>
                     <div class="col-6 col-md-4 col-lg">
-                         <div class="stat-card p-3 border-danger border-opacity-25 bg-danger bg-opacity-10">
+                         <div class="stat-card p-3 border-danger border-opacity-25" style="background: rgba(220, 38, 38, 0.05);">
                             <div class="stat-label small text-danger">Pending Payment</div>
                             <div class="stat-number fs-4 text-danger" id="storageViewPendingCost">₹0</div>
                         </div>
@@ -207,8 +210,8 @@
                 </div>
 
                 <div class="table-container">
-                    <div class="p-3 border-bottom border-secondary border-opacity-10">
-                        <h6 class="m-0 text-white fw-bold"><i class="bi bi-graph-up-arrow me-2"></i>Detailed History</h6>
+                    <div class="p-4 border-bottom border-secondary border-opacity-10 bg-black bg-opacity-25">
+                        <h6 class="m-0 text-accent text-uppercase letter-spacing-1 fw-bold"><i class="bi bi-graph-up-arrow me-2"></i>Detailed History</h6>
                     </div>
                     <div class="table-responsive">
                         <table class="table">
@@ -237,72 +240,113 @@
             </div>
 
             <div id="view-gallery" class="view-section">
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 border-bottom border-secondary border-opacity-25 pb-3">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 border-bottom border-secondary border-opacity-25 pb-4">
                     <div>
-                        <h2 class="fw-bold m-0" id="galleryViewClientName">Client Gallery</h2>
-                        <div class="d-flex gap-2 text-secondary small mt-1 align-items-center">
-                            <span id="galleryViewEventName" class="badge bg-secondary bg-opacity-25">Event Name</span>
-                            <span class="text-secondary mx-1">•</span>
-                            <span>ID: <span id="galleryViewClientId"></span></span>
+                        <h2 class="fw-bold m-0 text-white" id="galleryViewClientName">Client Gallery</h2>
+                        <div class="d-flex gap-3 text-secondary small mt-2 align-items-center">
+                            <span id="galleryViewEventName" class="badge border border-secondary text-light px-3 py-1 bg-transparent">Event Name</span>
+                            <span class="text-secondary">|</span>
+                            <span>ID: <span id="galleryViewClientId" class="text-accent font-monospace"></span></span>
                         </div>
                     </div>
                     <div class="d-flex gap-2">
-                        <button id="btnDownloadZip" class="btn btn-outline-success" onclick="downloadGalleryZip()">
+                        <button id="btnDownloadZip" class="btn btn-outline-success rounded-pill px-4" onclick="downloadGalleryZip()">
                             <i class="bi bi-file-earmark-zip me-2"></i>Download ZIP
                         </button>
-                        <button class="btn btn-outline-light" onclick="switchView('clients')">
-                            <i class="bi bi-arrow-left me-2"></i>Back to Clients
+                        <button class="btn btn-outline-light rounded-pill px-4" onclick="switchView('clients')">
+                            <i class="bi bi-arrow-left me-2"></i>Back
                         </button>
                     </div>
                 </div>
 
-                <div id="deleteRequestControls" class="alert alert-danger bg-opacity-10 border-danger d-flex justify-content-between align-items-center d-none mb-4">
+                <div id="deleteRequestControls" class="alert alert-danger bg-transparent border-danger d-flex justify-content-between align-items-center d-none mb-4 p-4 rounded-4" style="box-shadow: inset 0 0 20px rgba(220,38,38,0.1);">
                      <div>
-                        <i class="bi bi-exclamation-circle-fill text-danger me-2"></i>
-                        <span class="text-danger fw-bold"><span id="delReqCount">0</span> Deletion Requests Found</span>
-                        <span class="text-white-50 small ms-2">Customer requested removal of these images.</span>
+                        <i class="bi bi-exclamation-circle-fill text-danger me-2 fs-5 align-middle"></i>
+                        <span class="text-danger fw-bold fs-5"><span id="delReqCount">0</span> Deletion Requests Found</span>
+                        <div class="text-white-50 mt-1">Customer requested removal of these images.</div>
                      </div>
-                     <button class="btn btn-danger btn-sm" id="btnProcessDelete" onclick="toggleDeleteFilter()">Review Requests</button>
+                     <button class="btn btn-danger rounded-pill px-4" id="btnProcessDelete" onclick="toggleDeleteFilter()">Review Requests</button>
                 </div>
                 
-                <div id="confirmDeletePanel" class="alert alert-warning bg-opacity-10 border-warning d-flex justify-content-between align-items-center d-none mb-4">
+                <div id="confirmDeletePanel" class="alert alert-warning bg-transparent border-warning d-flex justify-content-between align-items-center d-none mb-4 p-4 rounded-4" style="box-shadow: inset 0 0 20px rgba(245,158,11,0.1);">
                      <div>
-                        <i class="bi bi-trash-fill text-warning me-2"></i>
-                        <span class="text-warning fw-bold">Reviewing Deletion Requests</span>
+                        <i class="bi bi-trash-fill text-warning me-2 fs-5 align-middle"></i>
+                        <span class="text-warning fw-bold fs-5">Reviewing Deletion Requests</span>
                      </div>
                      <div class="d-flex gap-2">
-                        <button class="btn btn-outline-light btn-sm" onclick="cancelDeleteReview()">Cancel</button>
-                        <button class="btn btn-warning btn-sm" id="btnConfirmPermDelete" onclick="performPermanentDelete()">Confirm Permanent Delete</button>
+                        <button class="btn btn-outline-light rounded-pill px-4" onclick="cancelDeleteReview()">Cancel</button>
+                        <button class="btn btn-warning rounded-pill px-4 fw-bold" id="btnConfirmPermDelete" onclick="performPermanentDelete()">Confirm Permanent Delete</button>
                      </div>
                 </div>
 
                 <div id="galleryGrid" class="gallery-grid">
-                    </div>
+                </div>
             </div>
 
+        </div>
+    </div>
+
+    <div class="modal fade" id="downloadManagerModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-accent bg-dark" style="box-shadow: 0 0 30px rgba(212,175,55,0.2);">
+                <div class="modal-body p-4 p-md-5 text-center">
+                    <i class="bi bi-cloud-arrow-down display-1 text-accent mb-3 opacity-75"></i>
+                    <h4 class="fw-bold text-white mb-4">Downloading Gallery...</h4>
+                    
+                    <div class="text-start mb-3">
+                        <div class="d-flex justify-content-between small text-secondary fw-bold mb-2 text-uppercase letter-spacing-1">
+                            <span id="dlProgressText">0 / 0 Files</span>
+                            <span id="dlPercentText" class="text-accent">0%</span>
+                        </div>
+                        <div class="progress bg-secondary bg-opacity-25" style="height: 8px; border-radius: 4px;">
+                            <div id="dlProgressBar" class="progress-bar bg-accent progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-5 mt-4">
+                        <div class="text-start">
+                            <div class="small text-secondary text-uppercase fw-bold letter-spacing-1 mb-1">Live Speed</div>
+                            <div class="font-monospace fs-5 text-white"><i class="bi bi-speedometer2 text-accent me-2"></i><span id="dlSpeedText">0 MB/s</span></div>
+                        </div>
+                        <div class="text-end">
+                            <div class="small text-secondary text-uppercase fw-bold letter-spacing-1 mb-1">Downloaded</div>
+                            <div class="font-monospace fs-5 text-white" id="dlSizeText">0 MB</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-3">
+                        <button id="btnDlPauseResume" class="btn btn-outline-warning rounded-pill px-4 fw-bold text-uppercase">
+                            <i class="bi bi-pause-fill me-1"></i>Pause
+                        </button>
+                        <button id="btnDlCancel" class="btn btn-outline-danger rounded-pill px-4 fw-bold text-uppercase">
+                            <i class="bi bi-x-lg me-1"></i>Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="modal fade" id="addClientModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title fw-bold">Create New Event</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body p-4">
+                <div class="modal-header"><h5 class="modal-title fw-bold text-accent">Create New Event</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4 p-md-5">
                     <form id="addClientForm">
-                        <div class="row g-3">
-                            <div class="col-md-6"><label class="small text-secondary fw-bold">Date</label><input type="date" id="clientDate" class="form-control"></div>
-                            <div class="col-md-6"><label class="small text-secondary fw-bold">Client Name</label><input type="text" id="clientName" class="form-control" placeholder="John Doe"></div>
-                            <div class="col-md-6"><label class="small text-secondary fw-bold">Event Name</label><input type="text" id="eventName" class="form-control" placeholder="Wedding"></div>
-                            <div class="col-md-6"><label class="small text-secondary fw-bold">Phone</label><input type="tel" id="clientPhone" class="form-control" placeholder="+91..."></div>
+                        <div class="row g-4">
+                            <div class="col-md-6"><label class="small text-secondary fw-bold text-uppercase mb-2">Date</label><input type="date" id="clientDate" class="form-control" style="color-scheme: dark;"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold text-uppercase mb-2">Client Name</label><input type="text" id="clientName" class="form-control" placeholder="John Doe"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold text-uppercase mb-2">Event Name</label><input type="text" id="eventName" class="form-control" placeholder="Wedding"></div>
+                            <div class="col-md-6"><label class="small text-secondary fw-bold text-uppercase mb-2">Phone</label><input type="tel" id="clientPhone" class="form-control" placeholder="+91..."></div>
                         </div>
-                        <div class="alert alert-info mt-4 mb-0 small border-0 bg-opacity-10 bg-info">
+                        <div class="alert alert-info mt-4 mb-0 small border border-info bg-transparent text-info rounded-3">
                             <i class="bi bi-info-circle me-2"></i>Create the event first, then use "Add More" to upload photos.
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-outline-light border-0" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-primary" id="btnSaveClient" onclick="saveClient()">Create Event</button>
+                    <button class="btn btn-outline-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary px-4" id="btnSaveClient" onclick="saveClient()">Create Event</button>
                 </div>
             </div>
         </div>
@@ -312,37 +356,38 @@
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Add More Media</h5>
+                    <h5 class="modal-title fw-bold text-accent">Add More Media</h5>
                     <button class="btn-close btn-close-white" data-bs-dismiss="modal" id="btnAddMoreClose"></button>
                 </div>
-                <div class="modal-body p-4">
-                    <p class="text-secondary small mb-3">Adding to: <span id="addMoreClientName" class="text-white fw-bold"></span></p>
+                <div class="modal-body p-4 p-md-5">
+                    <p class="text-secondary mb-4">Target Event: <span id="addMoreClientName" class="text-white fw-bold fs-5"></span></p>
                     
                     <div id="addMoreDropZone" class="upload-drop-zone" onclick="document.getElementById('addMoreInput').click()">
-                        <i class="bi bi-plus-circle-dotted display-4 text-accent"></i>
-                        <p class="text-white mt-2">Click to Add Photos/Videos</p>
+                        <i class="bi bi-camera display-3 text-secondary mb-3 opacity-50"></i>
+                        <h5 class="text-white">Click to Select Photos/Videos</h5>
+                        <p class="text-secondary small mt-2">Supports JPG, PNG, MP4</p>
                         <input type="file" id="addMoreInput" class="d-none" multiple accept="image/*,video/*">
                     </div>
                     
-                    <div id="addMoreCountLabel" class="text-center mt-2 text-info small"></div>
+                    <div id="addMoreCountLabel" class="text-center mt-3 text-accent fw-bold small text-uppercase"></div>
 
-                    <div id="addMoreProgressContainer" class="mt-4" style="display:none;">
-                        <h6 class="text-secondary small fw-bold mb-2">Upload Queue</h6>
+                    <div id="addMoreProgressContainer" class="mt-5" style="display:none;">
+                        <h6 class="text-white fw-bold mb-3 text-uppercase letter-spacing-1">Upload Queue</h6>
                         <div id="uploadFileList" class="upload-file-list">
-                            </div>
-                        <div class="mt-3 d-flex justify-content-end align-items-center gap-3">
-                             <div class="text-secondary small">
-                                Files Uploaded: <span id="uploadCountDisplay" class="text-info fw-bold font-monospace">0 / 0</span>
+                        </div>
+                        <div class="mt-4 p-3 bg-black bg-opacity-25 rounded d-flex justify-content-between align-items-center flex-wrap gap-3 border border-secondary border-opacity-10">
+                             <div class="text-secondary">
+                                Files Processed: <span id="uploadCountDisplay" class="text-accent fw-bold font-monospace fs-5">0 / 0</span>
                              </div>
-                             <div class="text-secondary small">
-                                Total Progress: <span id="globalUploadPercent" class="text-white fw-bold">0%</span>
+                             <div class="text-secondary">
+                                Overall Progress: <span id="globalUploadPercent" class="text-white fw-bold fs-5">0%</span>
                              </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-outline-light border-0" data-bs-dismiss="modal" id="btnAddMoreCancel">Close</button>
-                    <button class="btn btn-primary" id="btnAddMoreConfirm" onclick="confirmAddMore()" disabled>Start Upload</button>
+                    <button class="btn btn-outline-light px-4" data-bs-dismiss="modal" id="btnAddMoreCancel">Close</button>
+                    <button class="btn btn-primary px-4" id="btnAddMoreConfirm" onclick="confirmAddMore()" disabled>Start Upload</button>
                 </div>
             </div>
         </div>
@@ -351,36 +396,38 @@
     <div class="modal fade" id="editClientModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Edit Details</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body p-4">
+                <div class="modal-header"><h5 class="modal-title text-accent">Edit Event Details</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4 p-md-5">
                     <form id="editClientForm">
                         <input type="hidden" id="editClientId">
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="editClientName" class="form-control"></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Event</label><input type="text" id="editEventName" class="form-control"></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Date</label><input type="date" id="editClientDate" class="form-control"></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Phone</label><input type="tel" id="editClientPhone" class="form-control"></div>
+                        <div class="mb-4"><label class="small text-secondary fw-bold text-uppercase mb-2">Name</label><input type="text" id="editClientName" class="form-control"></div>
+                        <div class="mb-4"><label class="small text-secondary fw-bold text-uppercase mb-2">Event</label><input type="text" id="editEventName" class="form-control"></div>
+                        <div class="mb-4"><label class="small text-secondary fw-bold text-uppercase mb-2">Date</label><input type="date" id="editClientDate" class="form-control" style="color-scheme: dark;"></div>
+                        <div class="mb-2"><label class="small text-secondary fw-bold text-uppercase mb-2">Phone</label><input type="tel" id="editClientPhone" class="form-control"></div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-primary" id="btnUpdateClient" onclick="updateClient()">Save</button>
+                    <button class="btn btn-primary px-4 w-100" id="btnUpdateClient" onclick="updateClient()">Save Changes</button>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-sm">
-            <div class="modal-content border-danger">
-                <div class="modal-header border-bottom border-secondary border-opacity-25 bg-danger bg-opacity-10">
-                    <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete</h5>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border border-danger">
+                <div class="modal-header border-bottom border-danger border-opacity-25" style="background: rgba(220, 38, 38, 0.05);">
+                    <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Deletion</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body text-center p-4">
-                    <p class="mb-0">Are you sure? This will delete the client and all associated photos permanently.</p>
+                <div class="modal-body text-center p-5">
+                    <i class="bi bi-trash display-1 text-danger opacity-50 mb-4"></i>
+                    <p class="fs-5 mb-0 text-white">Are you completely sure?</p>
+                    <p class="text-secondary mt-2 mb-0">This will permanently delete the event and wipe all associated media from the cloud.</p>
                 </div>
-                <div class="modal-footer justify-content-center border-top border-secondary border-opacity-25">
-                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger btn-sm" id="btnFinalDeleteClient" onclick="performDeleteClient()">Yes, Delete</button>
+                <div class="modal-footer justify-content-center border-top border-danger border-opacity-25">
+                    <button type="button" class="btn btn-outline-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger px-4 fw-bold" id="btnFinalDeleteClient" onclick="performDeleteClient()">Yes, Delete Permanently</button>
                 </div>
             </div>
         </div>
@@ -388,19 +435,19 @@
 
     <div class="modal fade" id="lockedModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-danger">
-                <div class="modal-header border-danger bg-danger bg-opacity-10">
-                    <h5 class="modal-title text-danger fw-bold"><i class="bi bi-lock-fill me-2"></i>Access Restricted</h5>
+            <div class="modal-content border border-danger">
+                <div class="modal-header border-bottom border-danger border-opacity-25" style="background: rgba(220, 38, 38, 0.05);">
+                    <h5 class="modal-title text-danger fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Access Restricted</h5>
                 </div>
                 <div class="modal-body text-center p-5">
-                    <i class="bi bi-shield-lock display-1 text-danger mb-4"></i>
-                    <h3 class="fw-bold mb-3" id="lockedModalHeader">Service Suspended</h3>
+                    <i class="bi bi-lock display-1 text-danger mb-4 opacity-50"></i>
+                    <h3 class="fw-bold mb-3 text-white" id="lockedModalHeader">Service Suspended</h3>
                     <p class="text-secondary mb-4" id="lockedModalText">
                         This action is disabled because the month has been locked by the developer.
                         <br><br>
-                        <span class="text-white bg-danger bg-opacity-25 px-3 py-1 rounded">Please contact your developer or Pay Month due.</span>
+                        <span class="text-danger fw-bold">Please contact your developer or clear pending dues.</span>
                     </p>
-                    <button class="btn btn-outline-light" data-bs-dismiss="modal">Close</button>
+                    <button class="btn btn-outline-light px-5 rounded-pill" data-bs-dismiss="modal">Acknowledge</button>
                 </div>
             </div>
         </div>
@@ -408,6 +455,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script type="module" src="admin.js?v=2.2"></script>
+    <script type="module" src="admin.js?v=2.1"></script>
 </body>
 </html>
