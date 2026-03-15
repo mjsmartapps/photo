@@ -582,6 +582,7 @@ window.showProfile = async () => {
             if(data.studioName) document.getElementById('profStudio').value = data.studioName;
             if(data.phone) document.getElementById('profPhone').value = data.phone;
             if(data.email) document.getElementById('profEmail').value = data.email;
+            if(data.password) document.getElementById('profPassword').value = data.password; // Retrieve password from Firestore
         }
     } catch(e) { console.error("Error loading profile", e); }
     
@@ -615,14 +616,22 @@ window.saveProfile = async () => {
             await updateProfile(user, { displayName: name });
         }
         
-        // If Auth updates succeed, update Firestore database
-        await setDoc(doc(db, 'studiousers', user.uid, 'profile', 'info'), {
+        // Define the profile payload to be saved
+        const profilePayload = {
             name: name,
             studioName: studio,
             phone: phone || user.phoneNumber || '',
             email: email || user.email || '',
             updatedAt: Date.now()
-        }, { merge: true });
+        };
+
+        // If a password was provided, explicitly save it into the Firestore doc as requested
+        if (password) {
+            profilePayload.password = password;
+        }
+
+        // Update Firestore database
+        await setDoc(doc(db, 'studiousers', user.uid, 'profile', 'info'), profilePayload, { merge: true });
         
         // UPDATE UI INSTANTLY
         currentStudioName = studio || "mjsmartstudio";
@@ -857,7 +866,9 @@ window.renderClientTable = () => {
 
     filteredClients.forEach(client => {
         const key = client.id;
-        const baseUrl = window.location.href.replace('admin.html', 'photo.html').split('#')[0];
+        
+        // This line guarantees the generated link will point to photo.html, even if the current page is index.html
+        const baseUrl = window.location.href.replace(/index\.html|admin\.html/, 'photo.html').split('#')[0];
         
         const isLocked = client.isLocked === true;
         const rowClass = isLocked ? 'row-locked' : '';
