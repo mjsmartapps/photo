@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
     getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged, 
-    signInWithEmailAndPassword, updateProfile, updateEmail, updatePassword 
+    signInWithEmailAndPassword, updateProfile, verifyBeforeUpdateEmail, updatePassword 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -602,10 +602,13 @@ window.saveProfile = async () => {
     toggleButtonLoader('btnSaveProfile', true);
     
     try {
+        let emailMsg = "";
+        
         // Must perform Firebase Auth credential updates BEFORE Firestore saves
-        // so that if an error (like recent login required) happens, we halt.
+        // using verifyBeforeUpdateEmail instead of updateEmail to comply with new Firebase policies
         if (email && email !== user.email) {
-            await updateEmail(user, email);
+            await verifyBeforeUpdateEmail(user, email);
+            emailMsg = " A verification link was sent to your new email.";
         }
         
         if (password) {
@@ -637,7 +640,7 @@ window.saveProfile = async () => {
         currentStudioName = studio || "mjsmartstudio";
         updateStudioNameUI(studio);
         
-        showToast("Profile updated successfully!", "success");
+        showToast("Profile updated successfully!" + emailMsg, "success");
         window.profileModalInstance.hide();
 
     } catch(e) {
