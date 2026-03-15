@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ENABLE OFFLINE PERSISTENCE
+// ENABLE OFFLINE PERSISTENCE (Fast Loading on Revisit)
 enableMultiTabIndexedDbPersistence(db).catch((err) => {
     if (err.code == 'failed-precondition') {
         console.warn('Multiple tabs open, persistence can only be enabled in one tab at a a time.');
@@ -27,38 +27,54 @@ enableMultiTabIndexedDbPersistence(db).catch((err) => {
 
 const urlParams = new URLSearchParams(window.location.search);
 const eventId = urlParams.get('eventId');
-const viewMode = urlParams.get('view'); 
+const viewMode = urlParams.get('view'); // 'all' or 'delete'
+const uid = urlParams.get('uid'); // Extracted Developer User ID
 
 let deleteSelection = new Set();
-let currentMediaList = []; 
+let currentMediaList = []; // Stores objects {url, type, size}
 let currentLightboxIndex = 0;
+let downloadModalInstance = null; // Download Manager Modal
+let currentStudioName = "mjsmartstudio"; // Globally stores the Studio Name
 
-// *** DOWNLOAD STATE & CONTROLS ***
-let isDownloadPaused = false;
-let downloadAbortController = null;
-let downloadSpeedInterval = null;
-let totalBytesDownloaded = 0;
-let lastBytesMeasurement = 0;
-
-// *** SECURITY & EVENTS ***
+// *** SECURITY: BLOCK SHORTCUTS & DRAGGING ***
 document.addEventListener('contextmenu', event => event.preventDefault());
 document.addEventListener('keydown', event => {
     if (event.ctrlKey && (event.key === 's' || event.key === 'p' || event.key === 'u')) {
         event.preventDefault();
     }
+    // Escape to close lightbox
     if (event.key === 'Escape') closeLightbox({target: document.getElementById('mediaLightbox')});
+    
+    // Arrow keys for lightbox navigation
     if (document.getElementById('mediaLightbox').style.display === 'flex') {
         if (event.key === 'ArrowLeft') changeSlide(-1);
         if (event.key === 'ArrowRight') changeSlide(1);
     }
 });
 
-// Initialize Header
+// Initialize Header with Studio Info (Global)
 loadStudioProfile();
 
 async function loadStudioProfile() {
+    if (!uid) return;
     try {
-        const snap = await getDoc(doc(db, 'settings', 'profile'));
+        // Fetch User's Profile Info (Dynamic Studio Name)
+        const profileSnap = await getDoc(doc(db, 'users', uid, 'profile', 'info'));
+        if (profileSnap.exists()) {
+            const profileData = profileSnap.data();
+            if (profileData.studioName) {
+                currentStudioName = profileData.studioName;
+                const titleEl = document.querySelector('.studio-title');
+                if (titleEl) {
+                    titleEl.innerText = profileData.studioName.toUpperCase();
+                }
+                document.title = profileData.studioName.toUpperCase();
+                document.getElementById('mainHeader').classList.remove('d-none');
+            }
+        }
+
+        // Fetch Extended Settings (Logo, Map, Contact)
+        const snap = await getDoc(doc(db, 'users', uid, 'settings', 'profile'));
         if (snap.exists()) {
             const data = snap.data();
             const header = document.getElementById('mainHeader');
@@ -123,15 +139,19 @@ function showToast(message, type = 'info') {
 }
 
 async function updateStat(id, type) {
-    if (viewMode === 'delete') return; 
+    if (viewMode === 'delete' || !uid) return; 
     try {
-        const clientRef = doc(db, 'clients', id);
+        const clientRef = doc(db, 'users', uid, 'clients', id);
         const field = type === 'view' ? 'totalViews' : 'totalDownloads';
-        await updateDoc(clientRef, { [field]: increment(1) });
-    } catch (err) { console.error("Stats Error:", err); }
+        await updateDoc(clientRef, {
+            [field]: increment(1)
+        });
+    } catch (err) {
+        console.error("Stats Error:", err);
+    }
 }
 
-if (!eventId) {
+if (!eventId || !uid) {
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('errorScreen').classList.remove('d-none');
 } else {
@@ -146,7 +166,7 @@ function showLinkDisabled(featureName) {
 
 async function initializeSystem() {
     try {
-        const clientSnap = await getDoc(doc(db, 'clients', eventId));
+        const clientSnap = await getDoc(doc(db, 'users', uid, 'clients', eventId));
         
         if (!clientSnap.exists()) {
             document.getElementById('loadingScreen').style.display = 'none';
@@ -165,11 +185,20 @@ async function initializeSystem() {
         const linkStatus = data.linkStatus || { ai: true, gallery: true, delete: true };
 
         if (viewMode === 'delete') {
-            if (!linkStatus.delete) return showLinkDisabled('Deletion Request');
+            if (!linkStatus.delete) {
+                showLinkDisabled('Deletion Request');
+                return;
+            }
         } else if (viewMode === 'all') {
-            if (!linkStatus.gallery) return showLinkDisabled('Full Gallery');
+            if (!linkStatus.gallery) {
+                showLinkDisabled('Full Gallery');
+                return;
+            }
         } else {
-            if (!linkStatus.ai) return showLinkDisabled('AI Search');
+            if (!linkStatus.ai) {
+                showLinkDisabled('AI Search');
+                return;
+            }
         }
 
         if (viewMode !== 'all' && viewMode !== 'delete') {
@@ -214,6 +243,7 @@ async function initializeSystem() {
     }
 }
 
+// Optimized Batch Rendering
 window.loadFullGallery = async () => {
     if (viewMode === 'all') {
         document.getElementById('heroButtons').classList.remove('d-none');
@@ -230,10 +260,11 @@ window.loadFullGallery = async () => {
     currentMediaList = []; 
 
     try {
-        const mediaCol = collection(db, 'clients', eventId, 'media');
+        const mediaCol = collection(db, 'users', uid, 'clients', eventId, 'media');
         const snap = await getDocs(mediaCol);
         
         if(!snap.empty) {
+            // Batch Append for Performance
             const fragment = document.createDocumentFragment();
             
             snap.forEach((doc) => {
@@ -261,12 +292,18 @@ const video = document.getElementById('webcam');
 
 async function startCameraStream() {
     if (stream) stream.getTracks().forEach(t => t.stop());
+
     try {
         const constraints = { video: { facingMode: currentFacingMode } };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
-        video.classList.toggle('video-mirror', currentFacingMode === 'user');
-        video.classList.toggle('video-normal', currentFacingMode !== 'user');
+
+        video.classList.remove('video-mirror', 'video-normal');
+        if (currentFacingMode === 'user') {
+            video.classList.add('video-mirror');
+        } else {
+            video.classList.add('video-normal');
+        }
     } catch (err) {
         console.error("Camera Error:", err);
         showToast("Unable to access camera. Check permissions.", "danger");
@@ -290,15 +327,18 @@ document.getElementById('closeCamBtn').addEventListener('click', () => {
 
 document.getElementById('snapBtn').addEventListener('click', () => {
     if (!stream) return;
+    
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
+    
     if (currentFacingMode === 'user') {
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
     }
     ctx.drawImage(video, 0, 0);
+    
     stream.getTracks().forEach(t => t.stop());
     document.getElementById('cameraContainer').style.display = 'none';
     processSearch(canvas.toDataURL('image/png'));
@@ -327,8 +367,9 @@ async function processSearch(imageUrl) {
             return;
         }
 
-        const mediaCol = collection(db, 'clients', eventId, 'media');
+        const mediaCol = collection(db, 'users', uid, 'clients', eventId, 'media');
         const snap = await getDocs(mediaCol);
+        
         let count = 0;
         const fragment = document.createDocumentFragment();
 
@@ -352,30 +393,42 @@ async function processSearch(imageUrl) {
         document.getElementById('matchCount').innerText = count > 0 ? `Found ${count} photos!` : "No matches found.";
         if(count === 0) showToast("No matches found for this face.", "warning");
         else showToast(`Found ${count} photos matching your face!`, "success");
+
     } catch (err) { 
         console.error(err);
         showToast("Error processing search.", "danger");
-    } finally { document.getElementById('searchingMsg').classList.add('d-none'); }
+    } 
+    finally { document.getElementById('searchingMsg').classList.add('d-none'); }
 }
 
 function getSafeFilename(url) {
     let cleanUrl = url.split('?')[0];
     let filename = cleanUrl.split('/').pop();
     filename = decodeURIComponent(filename);
+    
     let parts = filename.split('.');
-    let ext = parts.length > 1 ? parts.pop() : 'bin';
-    let name = parts.join('.').replace(/_/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
-    return `${name}.${ext.replace(/[^a-zA-Z0-9]/g, '')}`;
+    let ext = parts.length > 1 ? parts.pop() : '';
+    let name = parts.join('.'); 
+    
+    name = name.replace(/_/g, '-');
+    name = name.replace(/[^a-zA-Z0-9-]/g, '');
+    
+    ext = ext.replace(/[^a-zA-Z0-9]/g, '');
+    if (!ext) ext = 'bin'; 
+    
+    return `${name}.${ext}`;
 }
 
 window.forceDownload = async (url) => {
     updateStat(eventId, 'download');
     showToast("Starting download...", "info");
+    
     try {
         const response = await fetch(url, { mode: 'cors' });
         if (!response.ok) throw new Error("Network error");
         const blob = await response.blob();
-        saveAs(blob, getSafeFilename(url));
+        const safeName = getSafeFilename(url);
+        saveAs(blob, safeName);
         showToast("Download complete!", "success");
     } catch (error) {
         console.error("Download failed:", error);
@@ -389,198 +442,195 @@ window.forceDownload = async (url) => {
     }
 };
 
-// *** CONTROLLED DOWNLOAD LOGIC ***
-
-// Toggle Pause
-window.toggleDownloadPause = () => {
-    isDownloadPaused = !isDownloadPaused;
-    const btn = document.getElementById('btnPauseDownload');
-    if (isDownloadPaused) {
-        btn.classList.replace('btn-outline-dark', 'btn-warning');
-        btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Resume';
-        document.getElementById('downloadProgressText').innerText = "Download Paused";
-        document.getElementById('downloadSpeed').innerText = "0.0 MB/s";
-    } else {
-        btn.classList.replace('btn-warning', 'btn-outline-dark');
-        btn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause';
-        document.getElementById('downloadProgressText').innerText = "Resuming...";
-    }
-};
-
-// Cancel Download
-window.cancelDownload = () => {
-    if (downloadAbortController) {
-        downloadAbortController.abort();
-    }
-    isDownloadPaused = false;
-    clearInterval(downloadSpeedInterval);
-    document.getElementById('downloadProgressOverlay').classList.add('d-none');
-    showToast("Download Cancelled", "info");
-};
-
-// Calculate Speed (Total Bytes Delta / Time)
-function startSpeedometer() {
-    lastBytesMeasurement = totalBytesDownloaded;
-    clearInterval(downloadSpeedInterval);
-    
-    downloadSpeedInterval = setInterval(() => {
-        if(isDownloadPaused) return;
-
-        const nowBytes = totalBytesDownloaded;
-        const diff = nowBytes - lastBytesMeasurement;
-        lastBytesMeasurement = nowBytes;
-        
-        // Bytes per 0.5 sec -> MB per sec
-        // diff * 2 = bytes per second
-        const mbps = ((diff * 2) / (1024 * 1024)).toFixed(1);
-        document.getElementById('downloadSpeed').innerText = `${mbps} MB/s`;
-
-        const totalMB = (totalBytesDownloaded / (1024 * 1024)).toFixed(1);
-        document.getElementById('downloadSizeInfo').innerText = `${totalMB} MB downloaded`;
-
-    }, 500);
-}
-
+// ** Advanced Concurrent Download Manager **
 window.downloadAllZip = async () => {
     if (currentMediaList.length === 0) return showToast("No photos to download.", "warning");
 
-    // Reset State
-    isDownloadPaused = false;
-    downloadAbortController = new AbortController();
-    totalBytesDownloaded = 0;
-    const signal = downloadAbortController.signal;
+    if (!downloadModalInstance) {
+        downloadModalInstance = new bootstrap.Modal(document.getElementById('downloadManagerModal'));
+    }
 
-    // UI Reset
-    const progressOverlay = document.getElementById('downloadProgressOverlay');
-    const progressBar = document.getElementById('downloadProgressBar');
-    const progressText = document.getElementById('downloadProgressText');
-    const percentageText = document.getElementById('downloadPercentage');
-    const pauseBtn = document.getElementById('btnPauseDownload');
+    // Prepare Manager UI
+    const progressText = document.getElementById('dlProgressText');
+    const percentText = document.getElementById('dlPercentText');
+    const progressBar = document.getElementById('dlProgressBar');
+    const speedText = document.getElementById('dlSpeedText');
+    const sizeText = document.getElementById('dlSizeText');
+    const btnPause = document.getElementById('btnDlPauseResume');
+    const btnCancel = document.getElementById('btnDlCancel');
 
-    pauseBtn.classList.replace('btn-warning', 'btn-outline-dark');
-    pauseBtn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause';
+    progressText.innerText = `0 / ${currentMediaList.length} Files`;
+    percentText.innerText = "0%";
+    progressBar.style.width = "0%";
+    speedText.innerText = "0 MB/s";
+    sizeText.innerText = "0 MB";
+
+    btnPause.innerHTML = '<i class="bi bi-pause-fill me-1"></i>Pause';
+    btnPause.className = 'btn btn-outline-warning rounded-pill px-4 fw-bold text-uppercase';
     
-    progressOverlay.classList.remove('d-none');
-    progressBar.style.width = '0%';
-    percentageText.innerText = '0%';
-    progressText.innerText = "Initializing high-speed download...";
+    downloadModalInstance.show();
 
-    const zip = new JSZip();
-    const folder = zip.folder("karthickstudio"); 
-    const existingNames = new Set(); 
-    let processedCount = 0;
-    const totalFiles = currentMediaList.length;
+    // State Variables
+    let isPaused = false;
+    let isCancelled = false;
+    let abortController = new AbortController();
+    
+    // Calculate total expected bytes (fallback to estimating if size missing)
+    let totalExpectedBytes = currentMediaList.reduce((acc, media) => acc + (media.size || 0), 0);
+    const hasAccurateSizes = totalExpectedBytes > 0;
+    
+    let totalLoadedBytes = 0;
+    let processedFiles = 0;
+    
+    // Live speed variables
+    let lastUpdateTime = Date.now();
+    let bytesSinceLastUpdate = 0;
 
-    // Helper: Wait function for pause logic
-    const waitIfPaused = async () => {
-        while (isDownloadPaused) {
-            if (signal.aborted) throw new Error("Cancelled");
-            await new Promise(r => setTimeout(r, 200));
+    btnPause.onclick = () => {
+        isPaused = !isPaused;
+        if (isPaused) {
+            btnPause.innerHTML = '<i class="bi bi-play-fill me-1"></i>Resume';
+            btnPause.className = 'btn btn-outline-success rounded-pill px-4 fw-bold text-uppercase';
+            speedText.innerText = "Paused";
+            progressBar.classList.remove('progress-bar-animated');
+        } else {
+            btnPause.innerHTML = '<i class="bi bi-pause-fill me-1"></i>Pause';
+            btnPause.className = 'btn btn-outline-warning rounded-pill px-4 fw-bold text-uppercase';
+            lastUpdateTime = Date.now();
+            bytesSinceLastUpdate = 0;
+            progressBar.classList.add('progress-bar-animated');
         }
     };
 
-    startSpeedometer();
+    btnCancel.onclick = () => {
+        isCancelled = true;
+        abortController.abort();
+        downloadModalInstance.hide();
+        showToast("Download cancelled.", "danger");
+    };
 
-    // High Performance Concurrent Queue
-    // 6 is optimal for most browsers (limit per domain)
-    const CONCURRENCY_LIMIT = 6; 
-    const activePromises = [];
+    const zip = new JSZip();
+    const safeStudioFolder = (currentStudioName && currentStudioName.trim() !== '') ? currentStudioName.replace(/[^a-zA-Z0-9 _-]/g, '').trim() : "mjsmartstudio";
+    const folder = zip.folder(safeStudioFolder); 
+    const existingNames = new Set(); 
 
-    // Iterator to process files
-    let fileIndex = 0;
+    const updateManagerUI = () => {
+        if(isCancelled || isPaused) return;
+
+        const now = Date.now();
+        const timeDiff = (now - lastUpdateTime) / 1000; // in seconds
+
+        if (timeDiff >= 0.5) {
+            const speed = (bytesSinceLastUpdate / 1024 / 1024) / timeDiff;
+            speedText.innerText = `${speed.toFixed(2)} MB/s`;
+            lastUpdateTime = now;
+            bytesSinceLastUpdate = 0;
+        }
+
+        let percent = 0;
+        if (hasAccurateSizes) {
+            percent = Math.min(100, Math.round((totalLoadedBytes / totalExpectedBytes) * 100));
+        } else {
+            percent = Math.round((processedFiles / currentMediaList.length) * 100);
+        }
+
+        progressText.innerText = `${processedFiles} / ${currentMediaList.length} Files`;
+        percentText.innerText = `${percent}%`;
+        progressBar.style.width = `${percent}%`;
+        sizeText.innerText = `${(totalLoadedBytes / 1024 / 1024).toFixed(2)} MB`;
+    };
+
+    const downloadStream = async (media) => {
+        while (isPaused && !isCancelled) {
+            await new Promise(r => setTimeout(r, 500));
+        }
+        if (isCancelled) return;
+
+        try {
+            const response = await fetch(media.url, { mode: 'cors', signal: abortController.signal });
+            if (!response.ok) throw new Error("Fetch failed");
+            
+            const reader = response.body.getReader();
+            const chunks = [];
+            
+            while (true) {
+                while (isPaused && !isCancelled) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                if (isCancelled) {
+                    await reader.cancel();
+                    return;
+                }
+                
+                const {done, value} = await reader.read();
+                if (done) break;
+                
+                chunks.push(value);
+                totalLoadedBytes += value.length;
+                bytesSinceLastUpdate += value.length;
+                updateManagerUI();
+            }
+            
+            const blob = new Blob(chunks);
+            let safeName = getSafeFilename(media.url);
+            let finalName = safeName;
+            let counter = 1;
+            let namePart = safeName.substring(0, safeName.lastIndexOf('.'));
+            let extPart = safeName.substring(safeName.lastIndexOf('.'));
+
+            while (existingNames.has(finalName)) {
+                finalName = `${namePart}-${counter}${extPart}`;
+                counter++;
+            }
+            existingNames.add(finalName);
+            folder.file(finalName, blob);
+
+        } catch (e) {
+            if (e.name !== 'AbortError') console.warn("File skipped:", media.url);
+        } finally {
+            if (!isCancelled) {
+                processedFiles++;
+                updateManagerUI();
+            }
+        }
+    };
+
+    // Concurrency Control: Max 3 concurrent streams for stable speed tracking
+    const CONCURRENCY_LIMIT = 3;
+    const executing = [];
+    
+    for (const media of currentMediaList) {
+        if (isCancelled) break;
+        const p = downloadStream(media).then(() => {
+            executing.splice(executing.indexOf(p), 1);
+        });
+        executing.push(p);
+        if (executing.length >= CONCURRENCY_LIMIT) {
+            await Promise.race(executing);
+        }
+    }
+    
+    await Promise.all(executing);
+
+    if (isCancelled) return;
+
+    // Finalizing ZIP Phase
+    speedText.innerText = "0.00 MB/s";
+    percentText.innerText = "100%";
+    progressBar.style.width = "100%";
+    progressText.innerText = "Compressing ZIP file...";
+    btnPause.disabled = true;
 
     try {
-        while (fileIndex < totalFiles || activePromises.length > 0) {
-            // Check Cancellation
-            if (signal.aborted) throw new Error("Cancelled");
-
-            // Pause Logic: Stop adding new requests
-            await waitIfPaused();
-
-            // Refill Queue
-            while (activePromises.length < CONCURRENCY_LIMIT && fileIndex < totalFiles) {
-                if (isDownloadPaused || signal.aborted) break;
-
-                const media = currentMediaList[fileIndex];
-                fileIndex++;
-
-                const promise = (async () => {
-                    try {
-                        const response = await fetch(media.url, { signal, mode: 'cors' });
-                        if (!response.ok) throw new Error("Fetch failed");
-                        
-                        const blob = await response.blob();
-                        totalBytesDownloaded += blob.size;
-
-                        // Naming
-                        let safeName = getSafeFilename(media.url);
-                        let finalName = safeName;
-                        let counter = 1;
-                        let namePart = safeName.substring(0, safeName.lastIndexOf('.'));
-                        let extPart = safeName.substring(safeName.lastIndexOf('.'));
-
-                        while (existingNames.has(finalName)) {
-                            finalName = `${namePart}-${counter}${extPart}`;
-                            counter++;
-                        }
-                        existingNames.add(finalName);
-                        folder.file(finalName, blob);
-
-                    } catch (e) {
-                        if (e.name !== 'AbortError') console.warn("Skipped file:", media.url);
-                        else throw e;
-                    } finally {
-                        processedCount++;
-                        const pct = Math.round((processedCount / totalFiles) * 100);
-                        progressBar.style.width = `${pct}%`;
-                        percentageText.innerText = `${pct}%`;
-                        progressText.innerText = `Downloaded ${processedCount} of ${totalFiles} files`;
-                    }
-                })();
-
-                // Add to active list and remove when done
-                activePromises.push(promise);
-                promise.then(() => {
-                    activePromises.splice(activePromises.indexOf(promise), 1);
-                }).catch(() => {
-                    activePromises.splice(activePromises.indexOf(promise), 1);
-                });
-            }
-
-            // Wait for at least one to finish before looping to add more
-            if (activePromises.length > 0) {
-                await Promise.race(activePromises);
-            }
-        }
-
-        // Finalize
-        if (signal.aborted) throw new Error("Cancelled");
-        
-        progressText.innerText = "Compressing files... (This may take a moment)";
-        document.getElementById('downloadSpeed').innerText = "";
-        clearInterval(downloadSpeedInterval);
-        
-        progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
-        
         const content = await zip.generateAsync({type:"blob"});
-        if (signal.aborted) throw new Error("Cancelled");
-
         const safeEventId = eventId.replace(/[^a-zA-Z0-9]/g, '-');
         saveAs(content, `Gallery-${safeEventId}.zip`);
-        
         showToast("ZIP Downloaded Successfully!", "success");
-        progressOverlay.classList.add('d-none');
-
     } catch (err) {
-        if (err.message === "Cancelled" || err.name === 'AbortError') {
-            console.log("Download cancelled by user");
-        } else {
-            showToast("Error: " + err.message, "danger");
-            progressOverlay.classList.add('d-none');
-        }
+        showToast("Error creating ZIP: " + err.message, "danger");
     } finally {
-        clearInterval(downloadSpeedInterval);
-        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+        downloadModalInstance.hide();
+        btnPause.disabled = false;
     }
 };
 
@@ -692,8 +742,10 @@ window.closeLightbox = (e) => {
     if (e.target.id === 'mediaLightbox' || e.target.classList.contains('lightbox-close-btn') || e.target.closest('.lightbox-close-btn') || e.target.id === 'lightboxContainer') {
         const overlay = document.getElementById('mediaLightbox');
         const container = document.getElementById('lightboxContainer');
+        
         const video = container.querySelector('video');
         if (video) video.pause();
+        
         overlay.style.display = 'none';
         container.innerHTML = '';
     }
@@ -701,15 +753,18 @@ window.closeLightbox = (e) => {
 
 window.submitDeletionRequest = async () => {
     if (deleteSelection.size === 0) return showToast("No photos selected.", "warning");
+
     const btn = document.getElementById('btnSubmitDelete');
     btn.disabled = true;
     btn.innerText = "Submitting...";
+
     try {
         const requests = Array.from(deleteSelection);
-        const clientRef = doc(db, 'clients', eventId);
+        const clientRef = doc(db, 'users', uid, 'clients', eventId);
         await updateDoc(clientRef, { deletionRequests: requests });
+        
         showToast("Request sent! Admin will review deletion.", "success");
-        setTimeout(() => location.href = location.href.split('?')[0] + `?eventId=${eventId}`, 2000); 
+        setTimeout(() => location.href = location.href.split('?')[0] + `?eventId=${eventId}&uid=${uid}`, 2000); 
     } catch (error) {
         showToast("Error: " + error.message, "danger");
         btn.disabled = false;
@@ -717,23 +772,57 @@ window.submitDeletionRequest = async () => {
     }
 };
 
+// Helper: Create Photo Card DOM Element (Optimized for Batching)
 function createPhotoCard(photo, index) {
     const div = document.createElement('div');
     div.className = 'col-6 col-md-4 col-lg-3';
-    let mediaHtml = photo.isVideo 
-        ? `<div class="position-relative"><video src="${photo.url}#t=0.1" class="gallery-media" preload="metadata" muted></video><div class="video-indicator"><i class="bi bi-play-fill"></i></div></div>` 
-        : `<img src="${photo.url}" class="gallery-media" loading="lazy" decoding="async">`;
+    
+    let mediaHtml = '';
+    // Added decoding="async" for smoother scrolling on images
+    if (photo.isVideo) {
+        mediaHtml = `
+            <div class="position-relative">
+                <video src="${photo.url}#t=0.1" class="gallery-media" preload="metadata" muted></video>
+                <div class="video-indicator"><i class="bi bi-play-fill"></i></div>
+            </div>`;
+    } else {
+        mediaHtml = `<img src="${photo.url}" class="gallery-media" loading="lazy" decoding="async">`;
+    }
 
-    let buttonsHtml = viewMode === 'delete' 
-        ? `<div class="d-flex gap-2 mt-2 px-2 pb-2">
-            <button onclick="openFullscreen(${index})" class="btn btn-sm btn-outline-dark rounded-pill flex-grow-1"><i class="bi bi-eye"></i></button>
-            <button onclick="toggleDeleteSelect('${photo.url}')" class="btn btn-sm btn-outline-danger rounded-pill flex-grow-1 btn-mark-delete"><i class="bi bi-trash"></i> Mark</button>
-           </div>`
-        : `<div class="d-flex gap-2 mt-2 px-2 pb-2">
-            <button onclick="openFullscreen(${index})" class="btn btn-sm btn-light rounded-pill flex-grow-1">View</button>
-            <button onclick="event.stopPropagation(); forceDownload('${photo.url}')" class="btn btn-sm btn-dark rounded-pill flex-grow-1">Download</button>
-           </div>`;
+    let buttonsHtml = '';
+    if (viewMode === 'delete') {
+        buttonsHtml = `
+            <div class="d-flex gap-2 mt-2 px-2 pb-2">
+                <button onclick="openFullscreen(${index})" class="btn btn-sm btn-outline-dark rounded-pill flex-grow-1">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button onclick="toggleDeleteSelect('${photo.url}')" class="btn btn-sm btn-outline-danger rounded-pill flex-grow-1 btn-mark-delete">
+                    <i class="bi bi-trash"></i> Mark
+                </button>
+            </div>`;
+    } else {
+        buttonsHtml = `
+            <div class="d-flex gap-2 mt-2 px-2 pb-2">
+                <button onclick="openFullscreen(${index})" class="btn btn-sm btn-light rounded-pill flex-grow-1">
+                    View
+                </button>
+                <button onclick="event.stopPropagation(); forceDownload('${photo.url}')" class="btn btn-sm btn-dark rounded-pill flex-grow-1">
+                    Download
+                </button>
+            </div>`;
+    }
 
-    div.innerHTML = `<div class="card photo-card h-100" data-url="${photo.url}"><div onclick="openFullscreen(${index})">${mediaHtml}<div class="selected-overlay"><span class="bg-danger text-white rounded-circle p-3 shadow-lg"><i class="bi bi-check-lg display-6"></i></span></div></div>${buttonsHtml}</div>`;
+    div.innerHTML = `
+        <div class="card photo-card h-100" data-url="${photo.url}">
+            <div onclick="openFullscreen(${index})">
+                ${mediaHtml}
+                <div class="selected-overlay">
+                    <span class="bg-danger text-white rounded-circle p-3 shadow-lg">
+                        <i class="bi bi-check-lg display-6"></i>
+                    </span>
+                </div>
+            </div>
+            ${buttonsHtml}
+        </div>`;
     return div;
 }
