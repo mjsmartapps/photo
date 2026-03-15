@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
     getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged, 
-    GoogleAuthProvider, signInWithPopup, updateProfile, verifyBeforeUpdateEmail 
+    GoogleAuthProvider, signInWithPopup, updateProfile, updateEmail, updatePassword, signInWithEmailAndPassword 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -41,6 +41,7 @@ let displayedPhotos = [];
 let currentLightboxIndex = 0;
 let downloadModalInstance = null; // Download Manager Modal
 let currentStudioName = "mjsmartstudio"; // Globally stores the Studio Name
+window.isFirstTimeProfile = false;
 
 // Auth Variables
 let currentUserUid = null;
@@ -148,6 +149,55 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(err.message, "error");
                 } finally {
                     toggleButtonLoader('btnGoogleLogin', false);
+                }
+            });
+        }
+
+        if (loginContainer && !document.getElementById('loginModeToggle')) {
+            const toggleBtn = document.createElement('button');
+            toggleBtn.id = 'loginModeToggle';
+            toggleBtn.className = 'btn btn-outline-light w-100 mt-4 small fw-bold';
+            toggleBtn.innerText = 'Login with Email (Existing Users)';
+            loginContainer.appendChild(toggleBtn);
+
+            window.isEmailLogin = false;
+
+            toggleBtn.addEventListener('click', () => {
+                window.isEmailLogin = !window.isEmailLogin;
+                if (window.isEmailLogin) {
+                    toggleBtn.innerText = 'New User? Register / Login with Phone';
+                    phoneInput.type = 'email';
+                    phoneInput.placeholder = 'Email Address';
+                    // Temporarily hide the India flag prefix
+                    phoneInput.previousElementSibling.style.display = 'none';
+                    phoneInput.maxLength = 100;
+                    
+                    otpInput.type = 'password';
+                    otpInput.placeholder = 'Password';
+                    otpInput.style.display = 'block';
+                    btnLogin.innerText = 'Login with Email';
+                    btnLogin.dataset.originalText = 'Login with Email';
+                    
+                    // Hide Google button in Email mode
+                    document.getElementById('btnGoogleLogin').style.display = 'none';
+                    loginContainer.querySelector('.text-secondary.my-4').style.display = 'none';
+                } else {
+                    toggleBtn.innerText = 'Login with Email (Existing Users)';
+                    phoneInput.type = 'tel';
+                    phoneInput.placeholder = '0000000000';
+                    phoneInput.previousElementSibling.style.display = 'flex';
+                    phoneInput.maxLength = 10;
+                    
+                    otpInput.type = 'number';
+                    otpInput.placeholder = 'Enter 6-digit OTP';
+                    otpInput.style.display = 'none';
+                    btnLogin.innerText = 'Send OTP';
+                    btnLogin.dataset.originalText = 'Send OTP';
+                    confirmationResult = null; 
+                    
+                    // Show Google button in Phone mode
+                    document.getElementById('btnGoogleLogin').style.display = 'flex';
+                    loginContainer.querySelector('.text-secondary.my-4').style.display = 'block';
                 }
             });
         }
@@ -536,33 +586,36 @@ window.closeLightbox = (e) => {
 function initProfileUI() {
     if (document.getElementById('profileModal')) return;
     
+    // Notice the data-bs-backdrop="static" and data-bs-keyboard="false" ensures they cannot click out or hit Esc
     const modalHtml = `
-    <div class="modal fade" id="profileModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal fade" id="profileModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-info">
                 <div class="modal-header border-bottom border-secondary border-opacity-25 bg-info bg-opacity-10">
                     <h5 class="modal-title fw-bold text-info"><i class="bi bi-person-circle me-2"></i>My Profile</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="profCloseBtn1"></button>
                 </div>
                 <div class="modal-body p-4">
+                    <div id="profileWarningMsg" class="alert alert-warning small d-none"><i class="bi bi-exclamation-triangle-fill me-2"></i>Please complete your profile to continue.</div>
                     <form id="profileForm">
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="profName" class="form-control" placeholder="Your Name"></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name</label><input type="text" id="profStudio" class="form-control" placeholder="Studio Name"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Name <span class="text-danger">*</span></label><input type="text" id="profName" class="form-control" placeholder="Your Name" required></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name <span class="text-danger">*</span></label><input type="text" id="profStudio" class="form-control" placeholder="Studio Name" required></div>
                         <div class="mb-3">
-                            <label class="small text-secondary fw-bold">Phone Number</label>
+                            <label class="small text-secondary fw-bold">Phone Number <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text bg-dark border-secondary border-opacity-25 d-flex align-items-center text-white">
                                     <img src="https://flagcdn.com/w20/in.png" alt="India" style="width:20px; margin-right:8px; border-radius: 2px;"> +91
                                 </span>
-                                <input type="tel" id="profPhone" class="form-control" placeholder="0000000000" maxlength="10">
+                                <input type="tel" id="profPhone" class="form-control" placeholder="0000000000" maxlength="10" required>
                             </div>
                         </div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Email Address</label><input type="email" id="profEmail" class="form-control" placeholder="email@example.com"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Email Address <span class="text-danger">*</span></label><input type="email" id="profEmail" class="form-control" placeholder="email@example.com" required></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold" id="profPasswordLabel">Update Password</label><input type="password" id="profPassword" class="form-control" placeholder="Leave blank to keep unchanged"></div>
                     </form>
                 </div>
                 <div class="modal-footer border-top border-secondary border-opacity-25">
-                    <button class="btn btn-outline-light" data-bs-dismiss="modal">Close</button>
-                    <button class="btn btn-info text-dark fw-bold" id="btnSaveProfile" onclick="saveProfile()">Save Profile</button>
+                    <button class="btn btn-outline-light" data-bs-dismiss="modal" id="profCloseBtn2">Close</button>
+                    <button class="btn btn-info text-dark fw-bold" id="btnSaveProfile" onclick="saveProfile()">Save & Link Profile</button>
                 </div>
             </div>
         </div>
@@ -596,15 +649,28 @@ window.showProfile = async () => {
 
     const profPhone = document.getElementById('profPhone');
     const profEmail = document.getElementById('profEmail');
+    const btnClose1 = document.getElementById('profCloseBtn1');
+    const btnClose2 = document.getElementById('profCloseBtn2');
+    const warningMsg = document.getElementById('profileWarningMsg');
+    const passLabel = document.getElementById('profPasswordLabel');
+    const passInput = document.getElementById('profPassword');
     
     profPhone.value = '';
     profEmail.value = '';
     document.getElementById('profName').value = user.displayName || '';
     document.getElementById('profStudio').value = '';
+    passInput.value = '';
 
     try {
         const docSnap = await getDoc(doc(db, 'studiousers', currentUserUid, 'profile', 'info'));
         if (docSnap.exists()) {
+            window.isFirstTimeProfile = false;
+            if(btnClose1) btnClose1.style.display = 'block';
+            if(btnClose2) btnClose2.style.display = 'block';
+            warningMsg.classList.add('d-none');
+            passLabel.innerHTML = 'Update Password';
+            passInput.placeholder = 'Leave blank to keep unchanged';
+
             const data = docSnap.data();
             if(data.name) document.getElementById('profName').value = data.name;
             if(data.studioName) document.getElementById('profStudio').value = data.studioName;
@@ -615,15 +681,31 @@ window.showProfile = async () => {
             
             let e = user.email || data.email || '';
             profEmail.value = e;
+        } else {
+            window.isFirstTimeProfile = true;
+            if(btnClose1) btnClose1.style.display = 'none';
+            if(btnClose2) btnClose2.style.display = 'none';
+            warningMsg.classList.remove('d-none');
+            passLabel.innerHTML = 'Create Password <span class="text-danger">*</span>';
+            passInput.placeholder = 'Required for Email Login setup';
+
+            let p = user.phoneNumber || '';
+            profPhone.value = p.replace('+91', '');
+            let e = user.email || '';
+            profEmail.value = e;
         }
     } catch(e) { console.error("Error loading profile", e); }
     
     if (isGoogleLogin) {
         profEmail.readOnly = true;
         profPhone.readOnly = false;
+        passLabel.style.display = 'none';
+        passInput.style.display = 'none';
     } else {
         profEmail.readOnly = false;
         profPhone.readOnly = true;
+        passLabel.style.display = 'block';
+        passInput.style.display = 'block';
     }
 
     window.profileModalInstance.show();
@@ -639,55 +721,87 @@ window.saveProfile = async () => {
     const studio = document.getElementById('profStudio').value.trim();
     const rawPhone = document.getElementById('profPhone').value.trim();
     const email = document.getElementById('profEmail').value.trim();
+    const password = document.getElementById('profPassword').value.trim();
     
-    if (rawPhone && rawPhone.length !== 10) {
+    if (!name || !studio || !rawPhone || !email) {
+        return showToast("All fields (Name, Studio, Phone, Email) are mandatory.", "warning");
+    }
+
+    if (rawPhone.length !== 10) {
         return showToast("Please enter a valid 10-digit phone number.", "warning");
     }
-    const phone = rawPhone ? '+91' + rawPhone : '';
+
+    if (window.isFirstTimeProfile && !password && !isGoogleLogin) {
+        return showToast("Password is required to secure and link your account.", "warning");
+    }
+    
+    const phone = '+91' + rawPhone;
     
     toggleButtonLoader('btnSaveProfile', true);
     
     try {
-        let emailMsg = "";
-        
-        // Safely attempt to update Auth provider details
+        // Validate if Phone or Email is already used in ANOTHER account via collectionGroup
+        const emailQ = query(collectionGroup(db, 'profile'), where('email', '==', email));
+        const eSnap = await getDocs(emailQ);
+        let emailUsed = false;
+        eSnap.forEach(d => { if(d.ref.path.split('/')[1] !== user.uid) emailUsed = true; });
+        if(emailUsed) throw new Error("Email ID is already registered to another account.");
+
+        const phoneQ = query(collectionGroup(db, 'profile'), where('phone', '==', phone));
+        const pSnap = await getDocs(phoneQ);
+        let phoneUsed = false;
+        pSnap.forEach(d => { if(d.ref.path.split('/')[1] !== user.uid) phoneUsed = true; });
+        if(phoneUsed) throw new Error("Phone number is already registered to another account.");
+
+
+        // Connect to Firebase Auth credential updates BEFORE Firestore saves
         if (user) {
-            try {
-                if (email && email !== user.email && !isGoogleLogin) {
-                    await verifyBeforeUpdateEmail(user, email);
-                    emailMsg = " A verification link was sent to your new email.";
-                }
-                if (name && name !== user.displayName) {
-                    await updateProfile(user, { displayName: name });
-                }
-            } catch(authErr) {
-                console.warn("Auth update skipped due to policy limits or recent-login requirement.", authErr);
+            if (email && email !== user.email && !isGoogleLogin) {
+                // Instantly update Auth Email so they can use it to login next time
+                await updateEmail(user, email);
+            }
+            
+            if (password && !isGoogleLogin) {
+                await updatePassword(user, password);
+            }
+
+            if (name && name !== user.displayName) {
+                await updateProfile(user, { displayName: name });
             }
         }
         
         const profilePayload = {
             name: name,
             studioName: studio,
-            phone: phone || (user ? user.phoneNumber : '') || '',
-            email: email || (user ? user.email : '') || '',
+            phone: phone,
+            email: email,
             updatedAt: Date.now()
         };
 
         // Update Firestore database
         await setDoc(doc(db, 'studiousers', currentUserUid, 'profile', 'info'), profilePayload, { merge: true });
         
+        // Restore Close Buttons & state if it was first time
+        window.isFirstTimeProfile = false;
+        const btnClose1 = document.getElementById('profCloseBtn1');
+        const btnClose2 = document.getElementById('profCloseBtn2');
+        if(btnClose1) btnClose1.style.display = 'block';
+        if(btnClose2) btnClose2.style.display = 'block';
+
         // UPDATE UI INSTANTLY
         currentStudioName = studio || "mjsmartstudio";
         updateStudioNameUI(studio);
         
-        showToast("Profile updated successfully!" + emailMsg, "success");
+        showToast("Profile updated and linked successfully!", "success");
         window.profileModalInstance.hide();
 
     } catch(e) {
         if (e.code === 'auth/requires-recent-login') {
-            showToast("Security: Please log out and log back in to change Email/Password.", "error");
+            showToast("Security: Please log out and log back in to change credentials.", "error");
+        } else if (e.code === 'auth/email-already-in-use') {
+            showToast("Email ID is already in use by another account.", "error");
         } else {
-            showToast("Error updating profile: " + e.message, "error");
+            showToast(e.message, "error");
         }
     }
     
@@ -757,6 +871,40 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
     const btnLogin = document.getElementById('btnLogin');
     
     toggleButtonLoader('btnLogin', true);
+    
+    if (window.isEmailLogin) {
+        const email = phoneInput.value.trim();
+        const pass = otpInput.value.trim();
+        if(!email || !pass) {
+            showToast("Please enter email and password", "warning");
+            toggleButtonLoader('btnLogin', false);
+            return;
+        }
+        try {
+            const userCred = await signInWithEmailAndPassword(auth, email, pass);
+            
+            // Explicitly connect to Firestore studiousers ID to verify access
+            const docRef = doc(db, 'studiousers', userCred.user.uid, 'profile', 'info');
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                await signOut(auth);
+                showToast("Account not found in Studio Database. Please register using Phone Login.", "error");
+                toggleButtonLoader('btnLogin', false);
+                return;
+            }
+            
+            showToast("Logged in successfully", "success");
+        } catch (err) {
+            if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-login-credentials') {
+                showToast("Account not found or wrong password. New users must register using Phone Login.", "error");
+            } else {
+                showToast(err.message, "error");
+            }
+        }
+        toggleButtonLoader('btnLogin', false);
+        return;
+    }
     
     try {
         if (!confirmationResult) {
