@@ -1,10 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { 
-    getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, onSnapshot, writeBatch, increment, deleteField 
+    getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, onSnapshot, writeBatch, increment, deleteField, query, where, collectionGroup 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
     getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged, 
-    signInWithEmailAndPassword, updateProfile, verifyBeforeUpdateEmail, updatePassword 
+    GoogleAuthProvider, signInWithPopup, updateProfile, verifyBeforeUpdateEmail 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -88,57 +88,68 @@ function updateStudioNameUI(name) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-        // UI Adaptations for Phone/Email Auth
         const phoneInput = document.getElementById('emailInput');
         const otpInput = document.getElementById('passInput');
         const btnLogin = document.getElementById('btnLogin');
         const loginContainer = document.querySelector('.login-container');
 
-        if (loginContainer && !document.getElementById('loginModeToggle')) {
-            const toggleBtn = document.createElement('button');
-            toggleBtn.id = 'loginModeToggle';
-            toggleBtn.className = 'btn btn-outline-light w-100 mb-3 small';
-            toggleBtn.innerText = 'Login with Email (Existing Users)';
-            loginContainer.insertBefore(toggleBtn, phoneInput);
-
-            window.isEmailLogin = false;
-
-            toggleBtn.addEventListener('click', () => {
-                window.isEmailLogin = !window.isEmailLogin;
-                if (window.isEmailLogin) {
-                    toggleBtn.innerText = 'Register / Login with Phone';
-                    phoneInput.type = 'email';
-                    phoneInput.placeholder = 'Email Address';
-                    otpInput.type = 'password';
-                    otpInput.placeholder = 'Password';
-                    otpInput.style.display = 'block';
-                    btnLogin.innerText = 'Login with Email';
-                    btnLogin.dataset.originalText = 'Login with Email';
-                } else {
-                    toggleBtn.innerText = 'Login with Email (Existing Users)';
-                    phoneInput.type = 'tel';
-                    phoneInput.placeholder = 'Phone Number (+91...)';
-                    otpInput.type = 'number';
-                    otpInput.placeholder = 'Enter 6-digit OTP';
-                    otpInput.style.display = 'none';
-                    btnLogin.innerText = 'Send OTP';
-                    btnLogin.dataset.originalText = 'Send OTP';
-                    confirmationResult = null; 
-                }
+        // Transform existing login input into India Flag Phone UI
+        if (phoneInput && !phoneInput.parentElement.classList.contains('input-group')) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'input-group mb-3';
+            wrapper.innerHTML = `
+                <span class="input-group-text bg-dark border-secondary border-opacity-25 d-flex align-items-center text-white">
+                    <img src="https://flagcdn.com/w20/in.png" alt="India" style="width:20px; margin-right:8px; border-radius: 2px;"> +91
+                </span>
+            `;
+            phoneInput.parentNode.insertBefore(wrapper, phoneInput);
+            wrapper.appendChild(phoneInput);
+            
+            phoneInput.type = 'tel';
+            phoneInput.placeholder = '0000000000';
+            phoneInput.maxLength = 10;
+            phoneInput.classList.remove('mb-3'); 
+            
+            phoneInput.addEventListener('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
             });
         }
 
-        if (phoneInput && !window.isEmailLogin) {
-            phoneInput.type = "tel";
-            phoneInput.placeholder = "Phone Number (+91...)";
-        }
-        if (otpInput && !window.isEmailLogin) {
+        if (otpInput) {
             otpInput.type = "number";
             otpInput.placeholder = "Enter 6-digit OTP";
             otpInput.style.display = 'none'; 
         }
-        if (btnLogin && !window.isEmailLogin) {
+        if (btnLogin) {
             btnLogin.innerText = "Send OTP";
+        }
+
+        // Add Google Login Button
+        if (loginContainer && !document.getElementById('btnGoogleLogin')) {
+            const orText = document.createElement('div');
+            orText.className = "text-secondary my-4 small position-relative text-center fw-bold";
+            orText.innerHTML = `<span class="px-3 position-relative z-1" style="background: #0d0d12;">OR</span><hr class="position-absolute top-50 start-0 w-100 m-0 border-secondary opacity-25">`;
+            loginContainer.appendChild(orText);
+
+            const googleBtn = document.createElement('button');
+            googleBtn.id = 'btnGoogleLogin';
+            googleBtn.className = 'btn btn-outline-light w-100 d-flex align-items-center justify-content-center fw-bold py-2';
+            googleBtn.style.borderRadius = "8px";
+            googleBtn.innerHTML = `<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="me-3" style="width: 20px;"> Login with Google`;
+            loginContainer.appendChild(googleBtn);
+            
+            googleBtn.addEventListener('click', async () => {
+                try {
+                    toggleButtonLoader('btnGoogleLogin', true);
+                    const provider = new GoogleAuthProvider();
+                    await signInWithPopup(auth, provider);
+                    showToast("Google Login Successful", "success");
+                } catch (err) {
+                    showToast(err.message, "error");
+                } finally {
+                    toggleButtonLoader('btnGoogleLogin', false);
+                }
+            });
         }
 
         // Add Recaptcha container implicitly
@@ -537,9 +548,16 @@ function initProfileUI() {
                     <form id="profileForm">
                         <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="profName" class="form-control" placeholder="Your Name"></div>
                         <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name</label><input type="text" id="profStudio" class="form-control" placeholder="Studio Name"></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Phone Number</label><input type="tel" id="profPhone" class="form-control" placeholder="+91..." readonly></div>
+                        <div class="mb-3">
+                            <label class="small text-secondary fw-bold">Phone Number</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark border-secondary border-opacity-25 d-flex align-items-center text-white">
+                                    <img src="https://flagcdn.com/w20/in.png" alt="India" style="width:20px; margin-right:8px; border-radius: 2px;"> +91
+                                </span>
+                                <input type="tel" id="profPhone" class="form-control" placeholder="0000000000" maxlength="10">
+                            </div>
+                        </div>
                         <div class="mb-3"><label class="small text-secondary fw-bold">Email Address</label><input type="email" id="profEmail" class="form-control" placeholder="email@example.com"></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Update Password</label><input type="password" id="profPassword" class="form-control" placeholder="Leave blank to keep unchanged"></div>
                     </form>
                 </div>
                 <div class="modal-footer border-top border-secondary border-opacity-25">
@@ -553,12 +571,17 @@ function initProfileUI() {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     window.profileModalInstance = new bootstrap.Modal(document.getElementById('profileModal'));
     
+    // Add Input listener to Phone Field for real-time formatting
+    document.getElementById('profPhone').addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+    });
+    
     // Add Profile button to the sidebar automatically
     const sidebarAuthArea = document.querySelector('.sidebar .border-top');
     if (sidebarAuthArea && !document.getElementById('btnShowProfile')) {
         const profBtn = document.createElement('button');
         profBtn.id = 'btnShowProfile';
-        profBtn.className = 'btn btn-outline-info w-100 btn-sm mb-3 fw-bold';
+        profBtn.className = 'btn btn-outline-info w-100 btn-sm mb-3 fw-bold text-uppercase letter-spacing-1';
         profBtn.innerHTML = '<i class="bi bi-person-badge me-2"></i>My Profile';
         profBtn.onclick = () => showProfile();
         sidebarAuthArea.insertBefore(profBtn, document.getElementById('btnLogout'));
@@ -566,75 +589,92 @@ function initProfileUI() {
 }
 
 window.showProfile = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+    if (!currentUserUid) return;
     
-    document.getElementById('profPhone').value = user.phoneNumber || '';
-    document.getElementById('profEmail').value = user.email || '';
+    const user = auth.currentUser || {};
+    const isGoogleLogin = user.providerData && user.providerData.some(p => p.providerId === 'google.com');
+
+    const profPhone = document.getElementById('profPhone');
+    const profEmail = document.getElementById('profEmail');
+    
+    profPhone.value = '';
+    profEmail.value = '';
     document.getElementById('profName').value = user.displayName || '';
-    document.getElementById('profPassword').value = ''; 
-    
+    document.getElementById('profStudio').value = '';
+
     try {
-        const docSnap = await getDoc(doc(db, 'studiousers', user.uid, 'profile', 'info'));
+        const docSnap = await getDoc(doc(db, 'studiousers', currentUserUid, 'profile', 'info'));
         if (docSnap.exists()) {
             const data = docSnap.data();
             if(data.name) document.getElementById('profName').value = data.name;
             if(data.studioName) document.getElementById('profStudio').value = data.studioName;
-            if(data.phone) document.getElementById('profPhone').value = data.phone;
-            if(data.email) document.getElementById('profEmail').value = data.email;
-            if(data.password) document.getElementById('profPassword').value = data.password; // Retrieve password from Firestore
+            
+            // Set values based on login type overrides
+            let p = user.phoneNumber || data.phone || '';
+            profPhone.value = p.replace('+91', '');
+            
+            let e = user.email || data.email || '';
+            profEmail.value = e;
         }
     } catch(e) { console.error("Error loading profile", e); }
     
+    if (isGoogleLogin) {
+        profEmail.readOnly = true;
+        profPhone.readOnly = false;
+    } else {
+        profEmail.readOnly = false;
+        profPhone.readOnly = true;
+    }
+
     window.profileModalInstance.show();
 };
 
 window.saveProfile = async () => {
+    if (!currentUserUid) return;
+    
     const user = auth.currentUser;
-    if (!user) return;
+    const isGoogleLogin = user && user.providerData && user.providerData.some(p => p.providerId === 'google.com');
     
     const name = document.getElementById('profName').value.trim();
     const studio = document.getElementById('profStudio').value.trim();
-    const phone = document.getElementById('profPhone').value.trim();
+    const rawPhone = document.getElementById('profPhone').value.trim();
     const email = document.getElementById('profEmail').value.trim();
-    const password = document.getElementById('profPassword').value.trim();
+    
+    if (rawPhone && rawPhone.length !== 10) {
+        return showToast("Please enter a valid 10-digit phone number.", "warning");
+    }
+    const phone = rawPhone ? '+91' + rawPhone : '';
     
     toggleButtonLoader('btnSaveProfile', true);
     
     try {
         let emailMsg = "";
         
-        // Must perform Firebase Auth credential updates BEFORE Firestore saves
-        // using verifyBeforeUpdateEmail instead of updateEmail to comply with new Firebase policies
-        if (email && email !== user.email) {
-            await verifyBeforeUpdateEmail(user, email);
-            emailMsg = " A verification link was sent to your new email.";
+        // Safely attempt to update Auth provider details
+        if (user) {
+            try {
+                if (email && email !== user.email && !isGoogleLogin) {
+                    await verifyBeforeUpdateEmail(user, email);
+                    emailMsg = " A verification link was sent to your new email.";
+                }
+                if (name && name !== user.displayName) {
+                    await updateProfile(user, { displayName: name });
+                }
+            } catch(authErr) {
+                console.warn("Auth update skipped due to policy limits or recent-login requirement.", authErr);
+            }
         }
         
-        if (password) {
-            await updatePassword(user, password);
-        }
-
-        if (name && name !== user.displayName) {
-            await updateProfile(user, { displayName: name });
-        }
-        
-        // Define the profile payload to be saved
         const profilePayload = {
             name: name,
             studioName: studio,
-            phone: phone || user.phoneNumber || '',
-            email: email || user.email || '',
+            phone: phone || (user ? user.phoneNumber : '') || '',
+            email: email || (user ? user.email : '') || '',
             updatedAt: Date.now()
         };
 
-        // If a password was provided, explicitly save it into the Firestore doc as requested
-        if (password) {
-            profilePayload.password = password;
-        }
-
         // Update Firestore database
-        await setDoc(doc(db, 'studiousers', user.uid, 'profile', 'info'), profilePayload, { merge: true });
+        await setDoc(doc(db, 'studiousers', currentUserUid, 'profile', 'info'), profilePayload, { merge: true });
         
         // UPDATE UI INSTANTLY
         currentStudioName = studio || "mjsmartstudio";
@@ -657,6 +697,8 @@ window.saveProfile = async () => {
 onAuthStateChanged(auth, (user) => {
     if (user) {
         currentUserUid = user.uid;
+        localStorage.setItem('studioAdminUid', currentUserUid); // Persist session for Firestore Auth bypass
+        
         document.getElementById('loginView').classList.add('hidden');
         document.getElementById('dashboardView').classList.remove('hidden');
         initClientsListener();
@@ -677,10 +719,35 @@ onAuthStateChanged(auth, (user) => {
         }).catch(e => console.error(e));
 
     } else {
-        currentUserUid = null;
-        document.getElementById('dashboardView').classList.add('hidden');
-        document.getElementById('loginView').classList.remove('hidden');
-        updateStudioNameUI('MJ SMART STUDIO'); // Reset on logout
+        // Fallback check to LocalStorage if user bypassed Auth by logging in directly via Firestore
+        const savedUid = localStorage.getItem('studioAdminUid');
+        if (savedUid) {
+            currentUserUid = savedUid;
+            
+            document.getElementById('loginView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('hidden');
+            initClientsListener();
+            initSettingsListener(); 
+            
+            initProfileUI();
+            
+            getDoc(doc(db, 'studiousers', savedUid, 'profile', 'info')).then(snap => {
+                if (!snap.exists()) {
+                    showProfile();
+                } else {
+                    const data = snap.data();
+                    if (data.studioName) {
+                        currentStudioName = data.studioName;
+                        updateStudioNameUI(data.studioName);
+                    }
+                }
+            }).catch(e => console.error(e));
+        } else {
+            currentUserUid = null;
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('loginView').classList.remove('hidden');
+            updateStudioNameUI('MJ SMART STUDIO'); // Reset on logout
+        }
     }
 });
 
@@ -691,28 +758,6 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
     
     toggleButtonLoader('btnLogin', true);
     
-    if (window.isEmailLogin) {
-        const email = phoneInput.value.trim();
-        const pass = otpInput.value.trim();
-        if(!email || !pass) {
-            showToast("Please enter email and password", "warning");
-            toggleButtonLoader('btnLogin', false);
-            return;
-        }
-        try {
-            await signInWithEmailAndPassword(auth, email, pass);
-            showToast("Logged in successfully", "success");
-        } catch (err) {
-            if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-login-credentials') {
-                showToast("Account not found or wrong password. New users must register using Phone Login.", "error");
-            } else {
-                showToast(err.message, "error");
-            }
-        }
-        toggleButtonLoader('btnLogin', false);
-        return;
-    }
-    
     try {
         if (!confirmationResult) {
             if (!window.recaptchaVerifier) {
@@ -721,10 +766,9 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
                 });
             }
             
-            const phoneNumber = phoneInput.value.trim();
-            if (!phoneNumber) throw new Error("Please enter a phone number");
-            
-            const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+91' + phoneNumber;
+            const rawPhone = phoneInput.value.trim();
+            if (rawPhone.length !== 10) throw new Error("Please enter a valid 10-digit phone number");
+            const formattedPhone = '+91' + rawPhone;
 
             confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
             
@@ -750,8 +794,11 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
 });
 
 document.getElementById('btnLogout').addEventListener('click', () => {
+    localStorage.removeItem('studioAdminUid');
     signOut(auth).then(() => {
         window.location.reload(); 
+    }).catch(() => {
+        window.location.reload();
     });
 });
 
