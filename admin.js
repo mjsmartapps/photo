@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
     getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged, 
-    GoogleAuthProvider, signInWithPopup, updateProfile, updateEmail, updatePassword, signInWithEmailAndPassword 
+    updateProfile, updateEmail, updatePassword 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -125,81 +125,149 @@ document.addEventListener('DOMContentLoaded', () => {
             btnLogin.innerText = "Send OTP";
         }
 
-        // Add Google Login Button
-        if (loginContainer && !document.getElementById('btnGoogleLogin')) {
-            const orText = document.createElement('div');
-            orText.className = "text-secondary my-4 small position-relative text-center fw-bold";
-            orText.innerHTML = `<span class="px-3 position-relative z-1" style="background: #0d0d12;">OR</span><hr class="position-absolute top-50 start-0 w-100 m-0 border-secondary opacity-25">`;
-            loginContainer.appendChild(orText);
+        // Add Legal Checkbox & Modal
+        if (loginContainer && !document.getElementById('tcCheckbox')) {
+            const tcWrapper = document.createElement('div');
+            tcWrapper.className = 'd-flex align-items-center justify-content-start mb-4 mt-4';
+            tcWrapper.innerHTML = `
+                <input type="checkbox" id="tcCheckbox" style="width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--accent-color); flex-shrink: 0;">
+                <label class="text-secondary ms-2 mb-0" for="tcCheckbox" style="font-size: 0.8rem; line-height: 1.4; cursor: pointer;">
+                    I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#tcModal" class="text-accent text-decoration-none fw-bold">Terms & Conditions</a> and <a href="#" data-bs-toggle="modal" data-bs-target="#tcModal" class="text-accent text-decoration-none fw-bold">Privacy Policy</a>
+                </label>
+            `;
+            btnLogin.parentNode.insertBefore(tcWrapper, btnLogin);
 
-            const googleBtn = document.createElement('button');
-            googleBtn.id = 'btnGoogleLogin';
-            googleBtn.className = 'btn btn-outline-light w-100 d-flex align-items-center justify-content-center fw-bold py-2';
-            googleBtn.style.borderRadius = "8px";
-            googleBtn.innerHTML = `<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="me-3" style="width: 20px;"> Login with Google`;
-            loginContainer.appendChild(googleBtn);
+            const tcContent = `
+                <h6 class="text-white fw-bold">MJ SMART STUDIO</h6>
+                <h6 class="text-white fw-bold">Terms & Conditions</h6>
+                <p><strong>Effective Date:</strong> March 2026<br>
+                <strong>Developed by:</strong> MJ SMART APPS</p>
+                
+                <h6 class="text-white mt-4 fw-bold">1. Service Overview</h6>
+                <p>MJ SMART STUDIO is a cloud-based software platform developed for photography studios to manage client photos, videos, and storage using secure cloud technology.<br>
+                இந்த MJ SMART STUDIO என்பது புகைப்பட ஸ்டுடியோக்கள் தங்கள் கிளையன்ட் புகைப்படங்கள் மற்றும் வீடியோக்களை பாதுகாப்பான கிளவுட் சேமிப்பகத்தில் நிர்வகிக்க உருவாக்கப்பட்ட மென்பொருள் தளமாகும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">2. User Registration</h6>
+                <p>Users must register using a valid mobile phone number with OTP verification. Users must provide correct information such as name, studio name, and phone number.<br>
+                பயனர்கள் செல்லுபடியாகும் மொபைல் எண்ணை OTP சரிபார்ப்புடன் பதிவு செய்ய வேண்டும். பெயர், ஸ்டுடியோ பெயர் மற்றும் தொலைபேசி எண் போன்ற சரியான தகவல்களை வழங்க வேண்டும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">3. Storage Service</h6>
+                <p>MJ SMART STUDIO allows studios to upload and store client photos and videos securely in cloud storage.<br>
+                MJ SMART STUDIO மூலம் ஸ்டுடியோக்கள் தங்கள் கிளையன்ட் புகைப்படங்கள் மற்றும் வீடியோக்களை கிளவுட் சேமிப்பகத்தில் பாதுகாப்பாக பதிவேற்றம் செய்து சேமிக்கலாம்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">4. Storage Pricing</h6>
+                <p>Cloud storage is charged at ₹15 per GB. Monthly charges are automatically calculated based on the total storage used.<br>
+                கிளவுட் சேமிப்பக கட்டணம் 1GBக்கு ₹15 ஆக கணக்கிடப்படும். மாதாந்திர கட்டணம் பயன்படுத்திய மொத்த சேமிப்பக அளவின் அடிப்படையில் தானாக கணக்கிடப்படும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">5. Billing Cycle</h6>
+                <p>Billing is calculated based on the previous month’s storage usage.<br>
+                <strong>Example:</strong><br>
+                Storage used in March 2026 will be billed in April 2026.<br>
+                Payment must be completed within the first 3–4 days of the new month.<br><br>
+                பில்லிங் முந்தைய மாதத்தில் பயன்படுத்திய சேமிப்பக அளவின் அடிப்படையில் கணக்கிடப்படும்.<br>
+                <strong>உதாரணம்:</strong><br>
+                மார்ச் 2026 மாதத்தில் பயன்படுத்திய சேமிப்பகத்திற்கான கட்டணம் ஏப்ரல் 2026ல் செலுத்த வேண்டும்.<br>
+                புதிய மாதத்தின் முதல் 3–4 நாட்களுக்குள் கட்டணம் செலுத்த வேண்டும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">6. Payment Delay Policy</h6>
+                <p>If payment is not completed within the allowed period:<br>
+                • New client creation may be restricted<br>
+                • Uploaded photos and videos may not be visible<br>
+                • Some software features may be temporarily disabled<br><br>
+                கட்டணம் குறிப்பிட்ட காலத்திற்குள் செலுத்தப்படாவிட்டால்:<br>
+                • புதிய கிளையன்ட் உருவாக்கம் தற்காலிகமாக நிறுத்தப்படும்<br>
+                • பதிவேற்றப்பட்ட புகைப்படங்கள் / வீடியோக்கள் காணப்படாமல் இருக்கலாம்<br>
+                • சில மென்பொருள் அம்சங்கள் தற்காலிகமாக முடக்கப்படலாம்</p>
+                
+                <h6 class="text-white mt-4 fw-bold">7. Long-Term Non-Payment</h6>
+                <p>If payment remains unpaid for more than 2 months, MJ SMART APPS reserves the right to permanently delete stored client photos and videos.<br>
+                கட்டணம் 2 மாதங்களுக்கு மேல் செலுத்தப்படாமல் இருந்தால், MJ SMART APPS சேமிக்கப்பட்ட கிளையன்ட் புகைப்படங்கள் மற்றும் வீடியோக்களை நிரந்தரமாக நீக்க உரிமை கொண்டுள்ளது.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">8. AI Face Recognition Feature</h6>
+                <p>MJ SMART STUDIO includes an AI-powered face recognition system that automatically scans uploaded images to help organize photos.<br>
+                • AI accuracy is approximately 80% – 85%<br>
+                • Accuracy depends on image quality, lighting, and face angle<br>
+                • Results are intended only to assist with photo organization<br><br>
+                MJ SMART STUDIO மென்பொருளில் AI அடிப்படையிலான முகம் அடையாளம் காணும் வசதி உள்ளது.<br>
+                • AI துல்லியம் சுமார் 80% – 85% வரை இருக்கும்<br>
+                • படம் தரம், வெளிச்சம் மற்றும் முக கோணம் போன்றவற்றின் அடிப்படையில் துல்லியம் மாறும்<br>
+                • இது புகைப்படங்களை ஒழுங்குபடுத்த உதவுவதற்காக மட்டுமே பயன்படுத்தப்படும்</p>
+                
+                <h6 class="text-white mt-4 fw-bold">9. User Responsibilities</h6>
+                <p>Users must ensure that uploaded photos or videos belong to them or that they have permission from their clients.<br>
+                பயனர்கள் பதிவேற்றும் புகைப்படங்கள் மற்றும் வீடியோக்கள் தங்களுக்கு சொந்தமானவை அல்லது கிளையன்ட் அனுமதி பெற்றவை என்பதை உறுதி செய்ய வேண்டும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">10. Service Availability</h6>
+                <p>MJ SMART APPS will attempt to maintain continuous service but cannot guarantee uninterrupted operation due to internet or server issues.<br>
+                MJ SMART APPS தொடர்ந்து சேவையை வழங்க முயற்சி செய்யும். ஆனால் இணையம் அல்லது சர்வர் பிரச்சனைகளால் சேவை இடையூறு ஏற்படலாம்.</p>
+                
+                <hr class="border-secondary opacity-25 my-5">
+                
+                <h5 class="text-white fw-bold">Data Privacy Policy</h5>
+                
+                <h6 class="text-white mt-4 fw-bold">1. Information We Collect</h6>
+                <p>We may collect the following information:<br>
+                • Name<br>
+                • Studio Name<br>
+                • Mobile Phone Number<br>
+                • Uploaded photos and videos<br>
+                • Storage usage information<br><br>
+                பின்வரும் தகவல்கள் சேகரிக்கப்படலாம்:<br>
+                • பெயர்<br>
+                • ஸ்டுடியோ பெயர்<br>
+                • மொபைல் எண்<br>
+                • பதிவேற்றப்பட்ட புகைப்படங்கள் மற்றும் வீடியோக்கள்<br>
+                • சேமிப்பக பயன்பாட்டு தகவல்</p>
+                
+                <h6 class="text-white mt-4 fw-bold">2. Purpose of Data Collection</h6>
+                <p>The collected data is used to operate the platform, manage client galleries, calculate storage usage, and improve system performance.<br>
+                சேகரிக்கப்பட்ட தரவு மென்பொருள் சேவையை வழங்க, கிளையன்ட் கேலரிகளை நிர்வகிக்க, சேமிப்பக பயன்பாட்டை கணக்கிட மற்றும் அமைப்பை மேம்படுத்த பயன்படுத்தப்படும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">3. AI Image Processing</h6>
+                <p>Uploaded images may be automatically processed to detect faces for organizing photos.<br>
+                Images are not used for public facial recognition databases or surveillance systems.<br><br>
+                பதிவேற்றப்பட்ட படங்கள் முகங்களை கண்டறிந்து புகைப்படங்களை ஒழுங்குபடுத்த AI மூலம் செயலாக்கப்படலாம்.<br>
+                இந்த படங்கள் பொதுவான முக அடையாள தரவுத்தளங்களில் பயன்படுத்தப்படமாட்டாது.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">4. Data Ownership</h6>
+                <p>All uploaded photos and videos remain the property of the studio user.<br>
+                பதிவேற்றப்பட்ட அனைத்து புகைப்படங்கள் மற்றும் வீடியோக்களும் ஸ்டுடியோ பயனரின் சொத்தாகும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">5. Data Security</h6>
+                <p>We use secure cloud infrastructure to protect stored data from unauthorized access.<br>
+                சேமிக்கப்பட்ட தரவை பாதுகாக்க பாதுகாப்பான கிளவுட் கட்டமைப்பை பயன்படுத்துகிறோம்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">6. Data Sharing</h6>
+                <p>MJ SMART APPS does not sell or share personal data with third parties, except when required by law.<br>
+                MJ SMART APPS பயனர் தரவை மூன்றாம் தரப்பினருக்கு விற்காது அல்லது பகிராது. சட்டப்படி தேவையானால் மட்டுமே பகிரப்படும்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">7. Data Retention</h6>
+                <p>Client data will remain stored while the account is active. Data may be deleted if the account remains unpaid for more than 2 months.<br>
+                கணக்கு செயலில் இருக்கும் வரை கிளையன்ட் தரவு சேமிக்கப்படும். 2 மாதங்களுக்கு மேல் கட்டணம் செலுத்தப்படாவிட்டால் தரவு நீக்கப்படலாம்.</p>
+                
+                <h6 class="text-white mt-4 fw-bold">8. Policy Updates</h6>
+                <p>MJ SMART APPS may update this policy periodically.<br>
+                இந்த கொள்கை அவ்வப்போது புதுப்பிக்கப்படலாம்.</p>
+            `;
             
-            googleBtn.addEventListener('click', async () => {
-                try {
-                    toggleButtonLoader('btnGoogleLogin', true);
-                    const provider = new GoogleAuthProvider();
-                    await signInWithPopup(auth, provider);
-                    showToast("Google Login Successful", "success");
-                } catch (err) {
-                    showToast(err.message, "error");
-                } finally {
-                    toggleButtonLoader('btnGoogleLogin', false);
-                }
-            });
-        }
-
-        if (loginContainer && !document.getElementById('loginModeToggle')) {
-            const toggleBtn = document.createElement('button');
-            toggleBtn.id = 'loginModeToggle';
-            toggleBtn.className = 'btn btn-outline-light w-100 mt-4 small fw-bold';
-            toggleBtn.innerText = 'Login with Email (Existing Users)';
-            loginContainer.appendChild(toggleBtn);
-
-            window.isEmailLogin = false;
-
-            toggleBtn.addEventListener('click', () => {
-                window.isEmailLogin = !window.isEmailLogin;
-                if (window.isEmailLogin) {
-                    toggleBtn.innerText = 'New User? Register / Login with Phone';
-                    phoneInput.type = 'email';
-                    phoneInput.placeholder = 'Email Address';
-                    // Temporarily hide the India flag prefix
-                    phoneInput.previousElementSibling.style.display = 'none';
-                    phoneInput.maxLength = 100;
-                    
-                    otpInput.type = 'password';
-                    otpInput.placeholder = 'Password';
-                    otpInput.style.display = 'block';
-                    btnLogin.innerText = 'Login with Email';
-                    btnLogin.dataset.originalText = 'Login with Email';
-                    
-                    // Hide Google button in Email mode
-                    document.getElementById('btnGoogleLogin').style.display = 'none';
-                    loginContainer.querySelector('.text-secondary.my-4').style.display = 'none';
-                } else {
-                    toggleBtn.innerText = 'Login with Email (Existing Users)';
-                    phoneInput.type = 'tel';
-                    phoneInput.placeholder = '0000000000';
-                    phoneInput.previousElementSibling.style.display = 'flex';
-                    phoneInput.maxLength = 10;
-                    
-                    otpInput.type = 'number';
-                    otpInput.placeholder = 'Enter 6-digit OTP';
-                    otpInput.style.display = 'none';
-                    btnLogin.innerText = 'Send OTP';
-                    btnLogin.dataset.originalText = 'Send OTP';
-                    confirmationResult = null; 
-                    
-                    // Show Google button in Phone mode
-                    document.getElementById('btnGoogleLogin').style.display = 'flex';
-                    loginContainer.querySelector('.text-secondary.my-4').style.display = 'block';
-                }
-            });
+            const tcModalHtml = `
+            <div class="modal fade" id="tcModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-scrollable modal-lg">
+                    <div class="modal-content bg-dark" style="border: 1px solid rgba(212, 175, 55, 0.3);">
+                        <div class="modal-header border-secondary border-opacity-25" style="background: rgba(212, 175, 55, 0.05);">
+                            <h5 class="modal-title text-accent fw-bold"><i class="bi bi-file-earmark-text-fill me-2"></i>Legal Agreements</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body text-white-50 small p-4" style="line-height: 1.6; font-family: 'Outfit', sans-serif; text-align: justify;">
+                            ${tcContent}
+                        </div>
+                        <div class="modal-footer border-secondary border-opacity-25">
+                            <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', tcModalHtml);
         }
 
         // Add Recaptcha container implicitly
@@ -598,15 +666,15 @@ function initProfileUI() {
                 <div class="modal-body p-4">
                     <div id="profileWarningMsg" class="alert alert-warning small d-none"><i class="bi bi-exclamation-triangle-fill me-2"></i>Please complete your profile to continue.</div>
                     <form id="profileForm">
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Name <span class="text-danger">*</span></label><input type="text" id="profName" class="form-control" placeholder="Your Name" required></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name <span class="text-danger">*</span></label><input type="text" id="profStudio" class="form-control" placeholder="Studio Name" required></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="profName" class="form-control text-muted" placeholder="Your Name" readonly></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name</label><input type="text" id="profStudio" class="form-control text-muted" placeholder="Studio Name" readonly></div>
                         <div class="mb-3">
-                            <label class="small text-secondary fw-bold">Phone Number <span class="text-danger">*</span></label>
+                            <label class="small text-secondary fw-bold">Phone Number</label>
                             <div class="input-group">
-                                <span class="input-group-text bg-dark border-secondary border-opacity-25 d-flex align-items-center text-white">
-                                    <img src="https://flagcdn.com/w20/in.png" alt="India" style="width:20px; margin-right:8px; border-radius: 2px;"> +91
+                                <span class="input-group-text bg-dark border-secondary border-opacity-25 d-flex align-items-center text-muted">
+                                    <img src="https://flagcdn.com/w20/in.png" alt="India" style="width:20px; margin-right:8px; border-radius: 2px; filter: grayscale(50%);"> +91
                                 </span>
-                                <input type="tel" id="profPhone" class="form-control" placeholder="0000000000" maxlength="10" required>
+                                <input type="tel" id="profPhone" class="form-control text-muted" placeholder="0000000000" maxlength="10" readonly>
                             </div>
                         </div>
                         <div class="mb-3"><label class="small text-secondary fw-bold">Email Address <span class="text-danger">*</span></label><input type="email" id="profEmail" class="form-control" placeholder="email@example.com" required></div>
@@ -624,11 +692,6 @@ function initProfileUI() {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     window.profileModalInstance = new bootstrap.Modal(document.getElementById('profileModal'));
     
-    // Add Input listener to Phone Field for real-time formatting
-    document.getElementById('profPhone').addEventListener('input', function() {
-        this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
-    });
-    
     // Add Profile button to the sidebar automatically
     const sidebarAuthArea = document.querySelector('.sidebar .border-top');
     if (sidebarAuthArea && !document.getElementById('btnShowProfile')) {
@@ -645,7 +708,6 @@ window.showProfile = async () => {
     if (!currentUserUid) return;
     
     const user = auth.currentUser || {};
-    const isGoogleLogin = user.providerData && user.providerData.some(p => p.providerId === 'google.com');
 
     const profPhone = document.getElementById('profPhone');
     const profEmail = document.getElementById('profEmail');
@@ -696,17 +758,13 @@ window.showProfile = async () => {
         }
     } catch(e) { console.error("Error loading profile", e); }
     
-    if (isGoogleLogin) {
-        profEmail.readOnly = true;
-        profPhone.readOnly = false;
-        passLabel.style.display = 'none';
-        passInput.style.display = 'none';
-    } else {
-        profEmail.readOnly = false;
-        profPhone.readOnly = true;
-        passLabel.style.display = 'block';
-        passInput.style.display = 'block';
-    }
+    // Explicit readOnly configurations (Name, Studio, Phone remain non-editable)
+    profEmail.readOnly = false;
+    profPhone.readOnly = true;
+    document.getElementById('profName').readOnly = true;
+    document.getElementById('profStudio').readOnly = true;
+    passLabel.style.display = 'block';
+    passInput.style.display = 'block';
 
     window.profileModalInstance.show();
 };
@@ -715,7 +773,6 @@ window.saveProfile = async () => {
     if (!currentUserUid) return;
     
     const user = auth.currentUser;
-    const isGoogleLogin = user && user.providerData && user.providerData.some(p => p.providerId === 'google.com');
     
     const name = document.getElementById('profName').value.trim();
     const studio = document.getElementById('profStudio').value.trim();
@@ -723,15 +780,11 @@ window.saveProfile = async () => {
     const email = document.getElementById('profEmail').value.trim();
     const password = document.getElementById('profPassword').value.trim();
     
-    if (!name || !studio || !rawPhone || !email) {
-        return showToast("All fields (Name, Studio, Phone, Email) are mandatory.", "warning");
+    if (!email) {
+        return showToast("Email Address is mandatory.", "warning");
     }
 
-    if (rawPhone.length !== 10) {
-        return showToast("Please enter a valid 10-digit phone number.", "warning");
-    }
-
-    if (window.isFirstTimeProfile && !password && !isGoogleLogin) {
+    if (window.isFirstTimeProfile && !password) {
         return showToast("Password is required to secure and link your account.", "warning");
     }
     
@@ -747,21 +800,14 @@ window.saveProfile = async () => {
         eSnap.forEach(d => { if(d.ref.path.split('/')[1] !== user.uid) emailUsed = true; });
         if(emailUsed) throw new Error("Email ID is already registered to another account.");
 
-        const phoneQ = query(collectionGroup(db, 'profile'), where('phone', '==', phone));
-        const pSnap = await getDocs(phoneQ);
-        let phoneUsed = false;
-        pSnap.forEach(d => { if(d.ref.path.split('/')[1] !== user.uid) phoneUsed = true; });
-        if(phoneUsed) throw new Error("Phone number is already registered to another account.");
-
-
         // Connect to Firebase Auth credential updates BEFORE Firestore saves
         if (user) {
-            if (email && email !== user.email && !isGoogleLogin) {
+            if (email && email !== user.email) {
                 // Instantly update Auth Email so they can use it to login next time
                 await updateEmail(user, email);
             }
             
-            if (password && !isGoogleLogin) {
+            if (password) {
                 await updatePassword(user, password);
             }
 
@@ -777,6 +823,10 @@ window.saveProfile = async () => {
             email: email,
             updatedAt: Date.now()
         };
+
+        if (password) {
+            profilePayload.password = password; // Connect password to Firestore for visibility
+        }
 
         // Update Firestore database
         await setDoc(doc(db, 'studiousers', currentUserUid, 'profile', 'info'), profilePayload, { merge: true });
@@ -869,42 +919,14 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
     const phoneInput = document.getElementById('emailInput');
     const otpInput = document.getElementById('passInput');
     const btnLogin = document.getElementById('btnLogin');
-    
-    toggleButtonLoader('btnLogin', true);
-    
-    if (window.isEmailLogin) {
-        const email = phoneInput.value.trim();
-        const pass = otpInput.value.trim();
-        if(!email || !pass) {
-            showToast("Please enter email and password", "warning");
-            toggleButtonLoader('btnLogin', false);
-            return;
-        }
-        try {
-            const userCred = await signInWithEmailAndPassword(auth, email, pass);
+    const tcCheckbox = document.getElementById('tcCheckbox');
             
-            // Explicitly connect to Firestore studiousers ID to verify access
-            const docRef = doc(db, 'studiousers', userCred.user.uid, 'profile', 'info');
-            const docSnap = await getDoc(docRef);
-            
-            if (!docSnap.exists()) {
-                await signOut(auth);
-                showToast("Account not found in Studio Database. Please register using Phone Login.", "error");
-                toggleButtonLoader('btnLogin', false);
-                return;
-            }
-            
-            showToast("Logged in successfully", "success");
-        } catch (err) {
-            if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-login-credentials') {
-                showToast("Account not found or wrong password. New users must register using Phone Login.", "error");
-            } else {
-                showToast(err.message, "error");
-            }
-        }
-        toggleButtonLoader('btnLogin', false);
+    if (tcCheckbox && !tcCheckbox.checked) {
+        showToast("Please agree to the Terms & Conditions and Privacy Policy to continue.", "warning");
         return;
     }
+    
+    toggleButtonLoader('btnLogin', true);
     
     try {
         if (!confirmationResult) {
