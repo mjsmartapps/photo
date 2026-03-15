@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
     getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged, 
-    updateProfile, updateEmail, updatePassword 
+    updateProfile 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 <h6 class="text-white mt-4 fw-bold">4. Data Ownership</h6>
                 <p>All uploaded photos and videos remain the property of the studio user.<br>
-                பதிவேற்றப்பட்ட அனைத்து புகைப்படங்கள் மற்றும் வீடியோக்களும் ஸ்டுடியோ பயனரின் சொத்தாகும்.</p>
+                பதிவேற்றப்பட்ட அனைத்து புகைப்படங்கள் மற்றும் வீடியோக்கள் தங்களுக்கு சொந்தமானவை அல்லது கிளையன்ட் அனுமதி பெற்றவை என்பதை உறுதி செய்ய வேண்டும்.</p>
                 
                 <h6 class="text-white mt-4 fw-bold">5. Data Security</h6>
                 <p>We use secure cloud infrastructure to protect stored data from unauthorized access.<br>
@@ -666,8 +666,8 @@ function initProfileUI() {
                 <div class="modal-body p-4">
                     <div id="profileWarningMsg" class="alert alert-warning small d-none"><i class="bi bi-exclamation-triangle-fill me-2"></i>Please complete your profile to continue.</div>
                     <form id="profileForm">
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="profName" class="form-control text-muted" placeholder="Your Name" readonly></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name</label><input type="text" id="profStudio" class="form-control text-muted" placeholder="Studio Name" readonly></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Name <span class="text-danger">*</span></label><input type="text" id="profName" class="form-control" placeholder="Your Name" required></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name <span class="text-danger">*</span></label><input type="text" id="profStudio" class="form-control" placeholder="Studio Name" required></div>
                         <div class="mb-3">
                             <label class="small text-secondary fw-bold">Phone Number</label>
                             <div class="input-group">
@@ -677,13 +677,11 @@ function initProfileUI() {
                                 <input type="tel" id="profPhone" class="form-control text-muted" placeholder="0000000000" maxlength="10" readonly>
                             </div>
                         </div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold">Email Address <span class="text-danger">*</span></label><input type="email" id="profEmail" class="form-control" placeholder="email@example.com" required></div>
-                        <div class="mb-3"><label class="small text-secondary fw-bold" id="profPasswordLabel">Update Password</label><input type="password" id="profPassword" class="form-control" placeholder="Leave blank to keep unchanged"></div>
                     </form>
                 </div>
                 <div class="modal-footer border-top border-secondary border-opacity-25">
                     <button class="btn btn-outline-light" data-bs-dismiss="modal" id="profCloseBtn2">Close</button>
-                    <button class="btn btn-info text-dark fw-bold" id="btnSaveProfile" onclick="saveProfile()">Save & Link Profile</button>
+                    <button class="btn btn-info text-dark fw-bold" id="btnSaveProfile" onclick="saveProfile()">Save Profile</button>
                 </div>
             </div>
         </div>
@@ -710,18 +708,13 @@ window.showProfile = async () => {
     const user = auth.currentUser || {};
 
     const profPhone = document.getElementById('profPhone');
-    const profEmail = document.getElementById('profEmail');
     const btnClose1 = document.getElementById('profCloseBtn1');
     const btnClose2 = document.getElementById('profCloseBtn2');
     const warningMsg = document.getElementById('profileWarningMsg');
-    const passLabel = document.getElementById('profPasswordLabel');
-    const passInput = document.getElementById('profPassword');
     
     profPhone.value = '';
-    profEmail.value = '';
     document.getElementById('profName').value = user.displayName || '';
     document.getElementById('profStudio').value = '';
-    passInput.value = '';
 
     try {
         const docSnap = await getDoc(doc(db, 'studiousers', currentUserUid, 'profile', 'info'));
@@ -730,42 +723,24 @@ window.showProfile = async () => {
             if(btnClose1) btnClose1.style.display = 'block';
             if(btnClose2) btnClose2.style.display = 'block';
             warningMsg.classList.add('d-none');
-            passLabel.innerHTML = 'Update Password';
-            passInput.placeholder = 'Leave blank to keep unchanged';
 
             const data = docSnap.data();
             if(data.name) document.getElementById('profName').value = data.name;
             if(data.studioName) document.getElementById('profStudio').value = data.studioName;
             
-            // Set values based on login type overrides
             let p = user.phoneNumber || data.phone || '';
             profPhone.value = p.replace('+91', '');
-            
-            let e = user.email || data.email || '';
-            profEmail.value = e;
         } else {
             window.isFirstTimeProfile = true;
             if(btnClose1) btnClose1.style.display = 'none';
             if(btnClose2) btnClose2.style.display = 'none';
             warningMsg.classList.remove('d-none');
-            passLabel.innerHTML = 'Create Password <span class="text-danger">*</span>';
-            passInput.placeholder = 'Required for Email Login setup';
 
             let p = user.phoneNumber || '';
             profPhone.value = p.replace('+91', '');
-            let e = user.email || '';
-            profEmail.value = e;
         }
     } catch(e) { console.error("Error loading profile", e); }
     
-    // Explicit readOnly configurations (Name, Studio, Phone remain non-editable)
-    profEmail.readOnly = false;
-    profPhone.readOnly = true;
-    document.getElementById('profName').readOnly = true;
-    document.getElementById('profStudio').readOnly = true;
-    passLabel.style.display = 'block';
-    passInput.style.display = 'block';
-
     window.profileModalInstance.show();
 };
 
@@ -777,15 +752,13 @@ window.saveProfile = async () => {
     const name = document.getElementById('profName').value.trim();
     const studio = document.getElementById('profStudio').value.trim();
     const rawPhone = document.getElementById('profPhone').value.trim();
-    const email = document.getElementById('profEmail').value.trim();
-    const password = document.getElementById('profPassword').value.trim();
     
-    if (!email) {
-        return showToast("Email Address is mandatory.", "warning");
+    if (!name || !studio || !rawPhone) {
+        return showToast("Name, Studio Name, and Phone are mandatory.", "warning");
     }
 
-    if (window.isFirstTimeProfile && !password) {
-        return showToast("Password is required to secure and link your account.", "warning");
+    if (rawPhone.length !== 10) {
+        return showToast("Please enter a valid 10-digit phone number.", "warning");
     }
     
     const phone = '+91' + rawPhone;
@@ -793,24 +766,7 @@ window.saveProfile = async () => {
     toggleButtonLoader('btnSaveProfile', true);
     
     try {
-        // Validate if Phone or Email is already used in ANOTHER account via collectionGroup
-        const emailQ = query(collectionGroup(db, 'profile'), where('email', '==', email));
-        const eSnap = await getDocs(emailQ);
-        let emailUsed = false;
-        eSnap.forEach(d => { if(d.ref.path.split('/')[1] !== user.uid) emailUsed = true; });
-        if(emailUsed) throw new Error("Email ID is already registered to another account.");
-
-        // Connect to Firebase Auth credential updates BEFORE Firestore saves
         if (user) {
-            if (email && email !== user.email) {
-                // Instantly update Auth Email so they can use it to login next time
-                await updateEmail(user, email);
-            }
-            
-            if (password) {
-                await updatePassword(user, password);
-            }
-
             if (name && name !== user.displayName) {
                 await updateProfile(user, { displayName: name });
             }
@@ -820,13 +776,8 @@ window.saveProfile = async () => {
             name: name,
             studioName: studio,
             phone: phone,
-            email: email,
             updatedAt: Date.now()
         };
-
-        if (password) {
-            profilePayload.password = password; // Connect password to Firestore for visibility
-        }
 
         // Update Firestore database
         await setDoc(doc(db, 'studiousers', currentUserUid, 'profile', 'info'), profilePayload, { merge: true });
@@ -842,17 +793,11 @@ window.saveProfile = async () => {
         currentStudioName = studio || "mjsmartstudio";
         updateStudioNameUI(studio);
         
-        showToast("Profile updated and linked successfully!", "success");
+        showToast("Profile updated successfully!", "success");
         window.profileModalInstance.hide();
 
     } catch(e) {
-        if (e.code === 'auth/requires-recent-login') {
-            showToast("Security: Please log out and log back in to change credentials.", "error");
-        } else if (e.code === 'auth/email-already-in-use') {
-            showToast("Email ID is already in use by another account.", "error");
-        } else {
-            showToast(e.message, "error");
-        }
+        showToast("Error updating profile: " + e.message, "error");
     }
     
     toggleButtonLoader('btnSaveProfile', false);
