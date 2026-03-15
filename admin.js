@@ -2,7 +2,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { 
     getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, onSnapshot, writeBatch, increment, deleteField 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+    getAuth, signInWithPhoneNumber, RecaptchaVerifier, signOut, onAuthStateChanged, 
+    signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, updateEmail, updatePassword 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB5jaPVkCwxXiMYhSn0uuW9QSMc-B5C9YY",
@@ -36,6 +39,8 @@ let isDeleteFilterActive = false;
 let currentPhotosCache = [];
 let displayedPhotos = []; 
 let currentLightboxIndex = 0;
+let downloadModalInstance = null; // Download Manager Modal
+let currentStudioName = "mjsmartstudio"; // Globally stores the Studio Name
 
 // Auth Variables
 let currentUserUid = null;
@@ -70,21 +75,69 @@ window.toggleButtonLoader = (btnId, isLoading) => {
     }
 };
 
+/* --- UI HELPERS --- */
+function updateStudioNameUI(name) {
+    const brandDiv = document.querySelector('.sidebar-brand');
+    const displayName = name && name.trim() !== '' ? name.trim().toUpperCase() : 'MJ SMART STUDIO';
+    
+    if (brandDiv) {
+        brandDiv.innerHTML = `<i class="bi bi-camera-fill text-accent me-2"></i>${displayName}
+            <button class="btn btn-sm text-secondary d-lg-none ms-auto" onclick="toggleSidebar()"><i class="bi bi-x-lg"></i></button>`;
+    }
+    document.title = displayName;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-        // UI Adaptations for Phone Auth (converting existing Email/Pass form)
+        // UI Adaptations for Phone/Email Auth (converting existing form)
         const phoneInput = document.getElementById('emailInput');
-        if (phoneInput) {
+        const otpInput = document.getElementById('passInput');
+        const btnLogin = document.getElementById('btnLogin');
+        const loginContainer = document.querySelector('.login-container');
+
+        if (loginContainer && !document.getElementById('loginModeToggle')) {
+            const toggleBtn = document.createElement('button');
+            toggleBtn.id = 'loginModeToggle';
+            toggleBtn.className = 'btn btn-outline-light w-100 mb-3 small';
+            toggleBtn.innerText = 'Switch to Email/Password Login';
+            loginContainer.insertBefore(toggleBtn, phoneInput);
+
+            window.isEmailLogin = false;
+
+            toggleBtn.addEventListener('click', () => {
+                window.isEmailLogin = !window.isEmailLogin;
+                if (window.isEmailLogin) {
+                    toggleBtn.innerText = 'Switch to Phone Login';
+                    phoneInput.type = 'email';
+                    phoneInput.placeholder = 'Email Address';
+                    otpInput.type = 'password';
+                    otpInput.placeholder = 'Password';
+                    otpInput.style.display = 'block';
+                    btnLogin.innerText = 'Login with Email';
+                    btnLogin.dataset.originalText = 'Login with Email';
+                } else {
+                    toggleBtn.innerText = 'Switch to Email/Password Login';
+                    phoneInput.type = 'tel';
+                    phoneInput.placeholder = 'Phone Number (+91...)';
+                    otpInput.type = 'number';
+                    otpInput.placeholder = 'Enter 6-digit OTP';
+                    otpInput.style.display = 'none';
+                    btnLogin.innerText = 'Send OTP';
+                    btnLogin.dataset.originalText = 'Send OTP';
+                    confirmationResult = null; 
+                }
+            });
+        }
+
+        if (phoneInput && !window.isEmailLogin) {
             phoneInput.type = "tel";
             phoneInput.placeholder = "Phone Number (+91...)";
         }
-        const otpInput = document.getElementById('passInput');
-        if (otpInput) {
+        if (otpInput && !window.isEmailLogin) {
             otpInput.type = "number";
             otpInput.placeholder = "Enter 6-digit OTP";
             otpInput.style.display = 'none'; 
         }
-        const btnLogin = document.getElementById('btnLogin');
-        if (btnLogin) {
+        if (btnLogin && !window.isEmailLogin) {
             btnLogin.innerText = "Send OTP";
         }
 
@@ -181,62 +234,213 @@ window.checkLock = (isLocked) => {
     return false;
 };
 
+// ** Advanced Concurrent Download Manager **
 window.downloadGalleryZip = async () => {
     if (!currentPhotosCache || currentPhotosCache.length === 0) {
-        showToast("No photos to download.", "warning");
-        return;
+        return showToast("No photos to download.", "warning");
     }
 
-    toggleButtonLoader('btnDownloadZip', true);
+    if (!downloadModalInstance) {
+        downloadModalInstance = new bootstrap.Modal(document.getElementById('downloadManagerModal'));
+    }
+
+    // Prepare Manager UI
+    const progressText = document.getElementById('dlProgressText');
+    const percentText = document.getElementById('dlPercentText');
+    const progressBar = document.getElementById('dlProgressBar');
+    const speedText = document.getElementById('dlSpeedText');
+    const sizeText = document.getElementById('dlSizeText');
+    const btnPause = document.getElementById('btnDlPauseResume');
+    const btnCancel = document.getElementById('btnDlCancel');
+
+    progressText.innerText = `0 / ${currentPhotosCache.length} Files`;
+    percentText.innerText = "0%";
+    progressBar.style.width = "0%";
+    speedText.innerText = "0 MB/s";
+    sizeText.innerText = "0 MB";
+
+    btnPause.innerHTML = '<i class="bi bi-pause-fill me-1"></i>Pause';
+    btnPause.className = 'btn btn-outline-warning rounded-pill px-4 fw-bold text-uppercase';
+    
+    downloadModalInstance.show();
+
+    // State Variables
+    let isPaused = false;
+    let isCancelled = false;
+    let abortController = new AbortController();
+    
+    // Calculate total expected bytes (fallback to estimating if size missing)
+    let totalExpectedBytes = currentPhotosCache.reduce((acc, media) => acc + (media.size || 0), 0);
+    const hasAccurateSizes = totalExpectedBytes > 0;
+    
+    let totalLoadedBytes = 0;
+    let processedFiles = 0;
+    
+    // Live speed variables
+    let lastUpdateTime = Date.now();
+    let bytesSinceLastUpdate = 0;
+
+    btnPause.onclick = () => {
+        isPaused = !isPaused;
+        if (isPaused) {
+            btnPause.innerHTML = '<i class="bi bi-play-fill me-1"></i>Resume';
+            btnPause.className = 'btn btn-outline-success rounded-pill px-4 fw-bold text-uppercase';
+            speedText.innerText = "Paused";
+            progressBar.classList.remove('progress-bar-animated');
+        } else {
+            btnPause.innerHTML = '<i class="bi bi-pause-fill me-1"></i>Pause';
+            btnPause.className = 'btn btn-outline-warning rounded-pill px-4 fw-bold text-uppercase';
+            lastUpdateTime = Date.now();
+            bytesSinceLastUpdate = 0;
+            progressBar.classList.add('progress-bar-animated');
+        }
+    };
+
+    btnCancel.onclick = () => {
+        isCancelled = true;
+        abortController.abort();
+        downloadModalInstance.hide();
+        showToast("Download cancelled.", "error");
+    };
+
+    const zip = new JSZip();
+    // Fetch user studio name dynamically
+    const safeStudioFolder = (currentStudioName && currentStudioName.trim() !== '') ? currentStudioName.replace(/[^a-zA-Z0-9 _-]/g, '').trim() : "mjsmartstudio";
+    const folder = zip.folder(safeStudioFolder); 
+    const existingNames = new Set(); 
+
+    const updateManagerUI = () => {
+        if(isCancelled || isPaused) return;
+
+        const now = Date.now();
+        const timeDiff = (now - lastUpdateTime) / 1000; // in seconds
+
+        if (timeDiff >= 0.5) {
+            const speed = (bytesSinceLastUpdate / 1024 / 1024) / timeDiff;
+            speedText.innerText = `${speed.toFixed(2)} MB/s`;
+            lastUpdateTime = now;
+            bytesSinceLastUpdate = 0;
+        }
+
+        let percent = 0;
+        if (hasAccurateSizes) {
+            percent = Math.min(100, Math.round((totalLoadedBytes / totalExpectedBytes) * 100));
+        } else {
+            percent = Math.round((processedFiles / currentPhotosCache.length) * 100);
+        }
+
+        progressText.innerText = `${processedFiles} / ${currentPhotosCache.length} Files`;
+        percentText.innerText = `${percent}%`;
+        progressBar.style.width = `${percent}%`;
+        sizeText.innerText = `${(totalLoadedBytes / 1024 / 1024).toFixed(2)} MB`;
+    };
+
+    const downloadStream = async (media) => {
+        while (isPaused && !isCancelled) {
+            await new Promise(r => setTimeout(r, 500));
+        }
+        if (isCancelled) return;
+
+        try {
+            const response = await fetch(media.url, { mode: 'cors', signal: abortController.signal });
+            if (!response.ok) throw new Error("Fetch failed");
+            
+            const reader = response.body.getReader();
+            const chunks = [];
+            
+            while (true) {
+                while (isPaused && !isCancelled) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                if (isCancelled) {
+                    await reader.cancel();
+                    return;
+                }
+                
+                const {done, value} = await reader.read();
+                if (done) break;
+                
+                chunks.push(value);
+                totalLoadedBytes += value.length;
+                bytesSinceLastUpdate += value.length;
+                updateManagerUI();
+            }
+            
+            const blob = new Blob(chunks);
+            
+            // Generate clean file name
+            let rawName = media.url.split('/').pop().split('?')[0];
+            rawName = decodeURIComponent(rawName);
+            
+            let parts = rawName.split('.');
+            let ext = parts.length > 1 ? parts.pop() : 'bin';
+            let name = parts.join('.');
+            
+            name = name.replace(/[^a-zA-Z0-9-]/g, '');
+            ext = ext.replace(/[^a-zA-Z0-9]/g, '');
+            
+            let safeName = `${name}.${ext}`;
+            let finalName = safeName;
+            let counter = 1;
+            
+            let namePart = safeName.substring(0, safeName.lastIndexOf('.'));
+            let extPart = safeName.substring(safeName.lastIndexOf('.'));
+
+            while (existingNames.has(finalName)) {
+                finalName = `${namePart}-${counter}${extPart}`;
+                counter++;
+            }
+            existingNames.add(finalName);
+            folder.file(finalName, blob);
+
+        } catch (e) {
+            if (e.name !== 'AbortError') console.warn("File skipped:", media.url);
+        } finally {
+            if (!isCancelled) {
+                processedFiles++;
+                updateManagerUI();
+            }
+        }
+    };
+
+    // Concurrency Control: Max 3 concurrent streams for stable speed tracking
+    const CONCURRENCY_LIMIT = 3;
+    const executing = [];
+    
+    for (const media of currentPhotosCache) {
+        if (isCancelled) break;
+        const p = downloadStream(media).then(() => {
+            executing.splice(executing.indexOf(p), 1);
+        });
+        executing.push(p);
+        if (executing.length >= CONCURRENCY_LIMIT) {
+            await Promise.race(executing);
+        }
+    }
+    
+    await Promise.all(executing);
+
+    if (isCancelled) return;
+
+    // Finalizing ZIP Phase
+    speedText.innerText = "0.00 MB/s";
+    percentText.innerText = "100%";
+    progressBar.style.width = "100%";
+    progressText.innerText = "Compressing ZIP file...";
+    btnPause.disabled = true;
 
     try {
-        const zip = new JSZip();
-        const folder = zip.folder("mjsmartstudio");
-        const existingNames = new Set();
-        
-        const promises = currentPhotosCache.map(async (photo) => {
-            try {
-                const response = await fetch(photo.url);
-                const blob = await response.blob();
-                
-                let rawName = photo.url.split('/').pop().split('?')[0];
-                rawName = decodeURIComponent(rawName);
-                
-                let parts = rawName.split('.');
-                let ext = parts.length > 1 ? parts.pop() : 'bin';
-                let name = parts.join('.');
-                
-                name = name.replace(/[^a-zA-Z0-9-]/g, '');
-                ext = ext.replace(/[^a-zA-Z0-9]/g, '');
-                
-                let cleanName = `${name}.${ext}`;
-                
-                let finalName = cleanName;
-                let counter = 1;
-                while (existingNames.has(finalName)) {
-                    finalName = `${name}-${counter}.${ext}`;
-                    counter++;
-                }
-                existingNames.add(finalName);
-                
-                folder.file(finalName, blob);
-            } catch (err) {
-                console.error("Failed to load", photo.url);
-            }
-        });
-
-        await Promise.all(promises);
-        
-        const content = await zip.generateAsync({type: "blob"});
-        const zipName = `Gallery-${currentGalleryId}.zip`;
-        saveAs(content, zipName);
+        const content = await zip.generateAsync({type:"blob"});
+        const safeEventId = currentGalleryId.replace(/[^a-zA-Z0-9]/g, '-');
+        saveAs(content, `Gallery-${safeEventId}.zip`);
         showToast("ZIP Downloaded Successfully!", "success");
-    } catch (e) {
-        showToast("Error creating ZIP.", "error");
+    } catch (err) {
+        showToast("Error creating ZIP: " + err.message, "error");
     } finally {
-        toggleButtonLoader('btnDownloadZip', false);
+        downloadModalInstance.hide();
+        btnPause.disabled = false;
     }
-}
+};
 
 window.openLightbox = (index) => {
     if (index < 0 || index >= displayedPhotos.length) return;
@@ -316,6 +520,125 @@ window.closeLightbox = (e) => {
     }
 };
 
+/* --- PROFILE UI AND LOGIC --- */
+
+function initProfileUI() {
+    if (document.getElementById('profileModal')) return;
+    
+    const modalHtml = `
+    <div class="modal fade" id="profileModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-info">
+                <div class="modal-header border-bottom border-secondary border-opacity-25 bg-info bg-opacity-10">
+                    <h5 class="modal-title fw-bold text-info"><i class="bi bi-person-circle me-2"></i>My Profile</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="profileForm">
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Name</label><input type="text" id="profName" class="form-control" placeholder="Your Name"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Studio Name</label><input type="text" id="profStudio" class="form-control" placeholder="Studio Name"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Phone Number</label><input type="tel" id="profPhone" class="form-control" placeholder="+91..." readonly></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Email Address</label><input type="email" id="profEmail" class="form-control" placeholder="email@example.com"></div>
+                        <div class="mb-3"><label class="small text-secondary fw-bold">Update Password</label><input type="password" id="profPassword" class="form-control" placeholder="Leave blank to keep unchanged"></div>
+                    </form>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-25">
+                    <button class="btn btn-outline-light" data-bs-dismiss="modal">Close</button>
+                    <button class="btn btn-info text-dark fw-bold" id="btnSaveProfile" onclick="saveProfile()">Save Profile</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    window.profileModalInstance = new bootstrap.Modal(document.getElementById('profileModal'));
+    
+    // Add Profile button to the sidebar automatically
+    const sidebarAuthArea = document.querySelector('.sidebar .border-top');
+    if (sidebarAuthArea && !document.getElementById('btnShowProfile')) {
+        const profBtn = document.createElement('button');
+        profBtn.id = 'btnShowProfile';
+        profBtn.className = 'btn btn-outline-info w-100 btn-sm mb-3 fw-bold';
+        profBtn.innerHTML = '<i class="bi bi-person-badge me-2"></i>My Profile';
+        profBtn.onclick = () => showProfile();
+        sidebarAuthArea.insertBefore(profBtn, document.getElementById('btnLogout'));
+    }
+}
+
+window.showProfile = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    document.getElementById('profPhone').value = user.phoneNumber || '';
+    document.getElementById('profEmail').value = user.email || '';
+    document.getElementById('profName').value = user.displayName || '';
+    document.getElementById('profPassword').value = ''; 
+    
+    try {
+        const docSnap = await getDoc(doc(db, 'users', user.uid, 'profile', 'info'));
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if(data.name) document.getElementById('profName').value = data.name;
+            if(data.studioName) document.getElementById('profStudio').value = data.studioName;
+            if(data.phone) document.getElementById('profPhone').value = data.phone;
+            if(data.email) document.getElementById('profEmail').value = data.email;
+        }
+    } catch(e) { console.error("Error loading profile", e); }
+    
+    window.profileModalInstance.show();
+};
+
+window.saveProfile = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    const name = document.getElementById('profName').value.trim();
+    const studio = document.getElementById('profStudio').value.trim();
+    const phone = document.getElementById('profPhone').value.trim();
+    const email = document.getElementById('profEmail').value.trim();
+    const password = document.getElementById('profPassword').value.trim();
+    
+    toggleButtonLoader('btnSaveProfile', true);
+    
+    try {
+        await setDoc(doc(db, 'users', user.uid, 'profile', 'info'), {
+            name: name,
+            studioName: studio,
+            phone: phone || user.phoneNumber || '',
+            email: email || user.email || '',
+            updatedAt: Date.now()
+        }, { merge: true });
+        
+        if (name) {
+            try { await updateProfile(user, { displayName: name }); } catch(e){}
+        }
+        
+        if (email && email !== user.email) {
+            try { await updateEmail(user, email); } 
+            catch(e) { console.warn('Email update requires recent login', e); }
+        }
+        
+        if (password) {
+            try { await updatePassword(user, password); } 
+            catch(e) { 
+                console.warn('Password update requires recent login', e); 
+                showToast("Password update requires you to log in again.", "warning"); 
+            }
+        }
+        
+        // UPDATE UI INSTANTLY
+        currentStudioName = studio || "mjsmartstudio";
+        updateStudioNameUI(studio);
+        
+        showToast("Profile updated successfully!", "success");
+        window.profileModalInstance.hide();
+    } catch(e) {
+        showToast("Error updating profile: " + e.message, "error");
+    }
+    
+    toggleButtonLoader('btnSaveProfile', false);
+};
+
 onAuthStateChanged(auth, (user) => {
     if (user) {
         currentUserUid = user.uid;
@@ -323,10 +646,26 @@ onAuthStateChanged(auth, (user) => {
         document.getElementById('dashboardView').classList.remove('hidden');
         initClientsListener();
         initSettingsListener(); 
+        
+        initProfileUI();
+        
+        getDoc(doc(db, 'users', user.uid, 'profile', 'info')).then(snap => {
+            if (!snap.exists()) {
+                showProfile();
+            } else {
+                const data = snap.data();
+                if (data.studioName) {
+                    currentStudioName = data.studioName;
+                    updateStudioNameUI(data.studioName);
+                }
+            }
+        }).catch(e => console.error(e));
+
     } else {
         currentUserUid = null;
         document.getElementById('dashboardView').classList.add('hidden');
         document.getElementById('loginView').classList.remove('hidden');
+        updateStudioNameUI('MJ SMART STUDIO'); // Reset on logout
     }
 });
 
@@ -336,6 +675,33 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
     const btnLogin = document.getElementById('btnLogin');
     
     toggleButtonLoader('btnLogin', true);
+    
+    if (window.isEmailLogin) {
+        const email = phoneInput.value.trim();
+        const pass = otpInput.value.trim();
+        if(!email || !pass) {
+            showToast("Please enter email and password", "warning");
+            toggleButtonLoader('btnLogin', false);
+            return;
+        }
+        try {
+            await signInWithEmailAndPassword(auth, email, pass);
+            showToast("Logged in successfully", "success");
+        } catch (err) {
+            if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
+                try {
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                    showToast("Account created successfully", "success");
+                } catch (e2) {
+                    showToast(e2.message, "error");
+                }
+            } else {
+                showToast(err.message, "error");
+            }
+        }
+        toggleButtonLoader('btnLogin', false);
+        return;
+    }
     
     try {
         if (!confirmationResult) {
@@ -348,7 +714,6 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
             const phoneNumber = phoneInput.value.trim();
             if (!phoneNumber) throw new Error("Please enter a phone number");
             
-            // Default to India country code if no '+' is provided
             const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+91' + phoneNumber;
 
             confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
@@ -362,7 +727,6 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
             if (!otp) throw new Error("Please enter the OTP");
             
             await confirmationResult.confirm(otp);
-            // reset UI state
             confirmationResult = null;
             otpInput.style.display = 'none';
             btnLogin.dataset.originalText = "Send OTP"; 
@@ -388,7 +752,9 @@ Promise.all([
 ]).then(() => document.getElementById('dashboardModelStatus').innerHTML = '<span class="text-success">Active</span>');
 
 function initSettingsListener() {
-    onSnapshot(doc(db, 'settings', 'config'), (docSnap) => {
+    if (!currentUserUid) return;
+    
+    onSnapshot(doc(db, 'users', currentUserUid, 'settings', 'config'), (docSnap) => {
         if (docSnap.exists()) {
             isCreationLocked = docSnap.data().creationLocked === true;
         } else {
@@ -699,8 +1065,8 @@ window.filterAndRenderStorage = () => {
 async function uploadToR2(file, clientId, index, onProgress) {
     const ext = file.name.split('.').pop();
     const finalFileName = `${Date.now()}-${index}.${ext}`;
-    // Structure R2 path with user ID for strict multi-tenancy
-    const path = `mjsmartstudio/${currentUserUid}/${clientId}/${finalFileName}`;
+    const safeStudioFolder = (currentStudioName && currentStudioName.trim() !== '') ? currentStudioName.replace(/[^a-zA-Z0-9]/g, '') : "mjsmartstudio";
+    const path = `${safeStudioFolder}/${currentUserUid}/${clientId}/${finalFileName}`;
     
     const formData = new FormData();
     formData.append("file", file);
