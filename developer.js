@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { 
-    getFirestore, collection, doc, onSnapshot, getDoc, setDoc, updateDoc, writeBatch 
+    getFirestore, collection, doc, onSnapshot, getDoc, getDocs, setDoc, updateDoc, writeBatch, collectionGroup
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -18,7 +18,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const STUDIO_NAME = "Karthick Studio";
+let currentStudioName = "MJ SMART STUDIO";
 let rawData = {};
 let groupedData = {};
 let batchTarget = { monthKey: null, status: null, clientIds: [] };
@@ -28,6 +28,12 @@ let currentBatchAlreadyPaid = 0;
 let batchConfirmModal = null;
 let lockConfirmModal = null;
 let profileModal = null;
+let userSelectModal = null;
+
+// New: Store the specifically selected user ID and Unsubscribe functions
+let targetUserId = null;
+let unsubClients = null;
+let unsubSettings = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     batchConfirmModal = new bootstrap.Modal(document.getElementById('batchConfirmModal'));
@@ -61,13 +67,158 @@ function formatBytes(bytes) {
     return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${sizes[i]}`;
 }
 
-onAuthStateChanged(auth, (user) => {
+// Dynamically create and render the user selection modal using detailed profile fetching
+window.renderUserSelectModal = async () => {
+    let modalEl = document.getElementById('userSelectModal');
+    if (!modalEl) {
+        const html = `
+        <div class="modal fade" id="userSelectModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content glass-panel" style="background: #0f172a; border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="modal-header border-bottom border-secondary border-opacity-25">
+                        <h5 class="modal-title fw-bold text-white"><i class="bi bi-people-fill me-2 text-primary"></i>Select User Studio</h5>
+                    </div>
+                    <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
+                        <div id="userListContainer" class="d-grid gap-3">
+                            <div class="text-center text-secondary py-3">
+                                <span class="spinner-border spinner-border-sm me-2"></span>Loading users...
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top border-secondary border-opacity-25">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        modalEl = document.getElementById('userSelectModal');
+        userSelectModal = new bootstrap.Modal(modalEl);
+    }
+    
+    userSelectModal.show();
+    
+    document.getElementById('userListContainer').innerHTML = `
+        <div class="text-center text-secondary py-3">
+            <span class="spinner-border spinner-border-sm me-2"></span>Loading users...
+        </div>`;
+
+    try {
+        const uniqueUsers = new Set();
+
+        // 1. Direct fetch from users collection
+        try {
+            const usersSnap = await getDocs(collection(db, 'users'));
+            usersSnap.forEach(doc => uniqueUsers.add(doc.id));
+        } catch (e) { }
+
+        // 2. Fetch via CollectionGroup 'clients'
+        try {
+            const clientsSnap = await getDocs(collectionGroup(db, 'clients'));
+            clientsSnap.forEach(doc => {
+                const parts = doc.ref.path.split('/');
+                if (parts.length >= 3 && parts[0] === 'users') {
+                    uniqueUsers.add(parts[1]);
+                }
+            });
+        } catch (e) { }
+
+        // 3. Fetch via CollectionGroup 'settings'
+        try {
+            const settingsSnap = await getDocs(collectionGroup(db, 'settings'));
+            settingsSnap.forEach(doc => {
+                const parts = doc.ref.path.split('/');
+                if (parts.length >= 3 && parts[0] === 'users') {
+                    uniqueUsers.add(parts[1]);
+                }
+            });
+        } catch (e) { }
+
+        // Fetch detailed profile for each identified UID
+        const profilePromises = Array.from(uniqueUsers).map(async (uid) => {
+            try {
+                const snap = await getDoc(doc(db, 'users', uid, 'profile', 'info'));
+                const data = snap.exists() ? snap.data() : {};
+                return { uid, ...data };
+            } catch(e) {
+                return { uid };
+            }
+        });
+        
+        const profiles = await Promise.all(profilePromises);
+        
+        function formatDateTime(timestamp) {
+            if (!timestamp) return 'N/A';
+            const d = new Date(timestamp);
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} & ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        }
+        
+        let listHtml = '';
+        
+        if (profiles.length === 0) {
+            listHtml = '<p class="text-secondary text-center">No users found.</p>';
+        } else {
+            profiles.forEach(p => {
+                const isActive = (p.uid === targetUserId);
+                const btnClass = isActive ? 'border-primary bg-primary bg-opacity-10' : 'border-secondary border-opacity-25 bg-dark bg-opacity-50';
+                
+                // Use available timestamps or 'N/A'
+                const dateStr = formatDateTime(p.updatedAt || p.createdAt);
+                
+                const sName = p.studioName || 'Unknown Studio';
+                const uName = p.name || 'N/A';
+                const uPhone = p.phone || 'N/A';
+                const uEmail = p.email || 'N/A';
+
+                listHtml += `
+                    <div class="user-card p-3 rounded border ${btnClass} cursor-pointer" onclick="window.selectUser('${p.uid}', '${sName.replace(/'/g, "\\'")}')">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="fw-bold text-white mb-0"><i class="bi bi-shop me-2 text-primary"></i>${sName}</h6>
+                            <span class="badge bg-secondary bg-opacity-25 text-light font-monospace" style="font-size: 0.75rem;">${dateStr}</span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-4 text-secondary small"><i class="bi bi-person me-2"></i>${uName}</div>
+                            <div class="col-md-4 text-secondary small"><i class="bi bi-telephone me-2"></i>${uPhone}</div>
+                            <div class="col-md-4 text-secondary small text-truncate" title="${uEmail}"><i class="bi bi-envelope me-2"></i>${uEmail}</div>
+                        </div>
+                        <div class="text-secondary mt-2 font-monospace" style="font-size:0.65rem;">UID: ${p.uid}</div>
+                    </div>
+                `;
+            });
+        }
+        document.getElementById('userListContainer').innerHTML = listHtml;
+    } catch (e) {
+        document.getElementById('userListContainer').innerHTML = `<p class="text-danger text-center small">Error loading users: ${e.message}</p>`;
+        showToast("Error fetching users", 'error');
+    }
+};
+
+window.selectUser = (uid, studioName) => {
+    targetUserId = uid;
+    currentStudioName = studioName || 'Unknown Studio';
+    userSelectModal.hide();
+    document.getElementById('dashboardView').classList.remove('hidden');
+    
+    // Update dashboard visual label
+    document.getElementById('currentUserDisplay').innerHTML = `<i class="bi bi-shop me-1"></i>Studio: <span class="text-white">${currentStudioName}</span> <span class="text-secondary ms-2 small font-monospace">(${uid})</span>`;
+    
+    // Initialize data uniquely mapped to the selected user
+    initData();
+    initGlobalSettings();
+    showToast(`Managing data for: ${currentStudioName}`, 'success');
+};
+
+onAuthStateChanged(auth, async (user) => {
     if (user) {
         document.getElementById('loginView').classList.add('hidden');
-        document.getElementById('dashboardView').classList.remove('hidden');
-        initData();
-        initGlobalSettings(); 
+        await window.renderUserSelectModal();
     } else {
+        targetUserId = null;
+        if (unsubClients) { unsubClients(); unsubClients = null; }
+        if (unsubSettings) { unsubSettings(); unsubSettings = null; }
+
+        if(userSelectModal) userSelectModal.hide();
         document.getElementById('dashboardView').classList.add('hidden');
         document.getElementById('loginView').classList.remove('hidden');
     }
@@ -78,29 +229,41 @@ document.getElementById('btnLogin').addEventListener('click', () => {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Signing In...';
     signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passInput').value).catch(err => { showToast(err.message, 'error'); btn.innerHTML = 'Sign In'; });
 });
+
 document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
 
 function initData() {
-    // Firestore: Listen to 'clients' collection
-    onSnapshot(collection(db, 'clients'), (snapshot) => {
+    if (!targetUserId) return;
+    
+    // Cleanup previous listener if switching users
+    if (unsubClients) unsubClients();
+    
+    // Firestore: Listen to specific user's 'clients' collection
+    unsubClients = onSnapshot(collection(db, 'users', targetUserId, 'clients'), (snapshot) => {
         rawData = {}; // Reset container
         
         if (!snapshot.empty) {
-            // Convert Firestore docs to object format expected by processAndRender
             snapshot.forEach(doc => {
                 rawData[doc.id] = doc.data();
             });
             processAndRender(rawData);
         } else {
             rawData = {};
-            document.getElementById('monthlyCardGrid').innerHTML = '<div class="col-12 text-center py-5 text-secondary">No data available.</div>';
+            document.getElementById('monthlyCardGrid').innerHTML = '<div class="col-12 text-center py-5 text-secondary">No data available for this user.</div>';
+            document.getElementById('globalTotalRevenue').innerText = "₹0.00";
+            document.getElementById('globalPendingRevenue').innerText = "₹0.00";
         }
     });
 }
 
 function initGlobalSettings() {
-    // Firestore: Listen to 'settings/config' document for creationLocked
-    onSnapshot(doc(db, 'settings', 'config'), (snapshot) => {
+    if (!targetUserId) return;
+
+    // Cleanup previous listener if switching users
+    if (unsubSettings) unsubSettings();
+
+    // Firestore: Listen to specific user's 'settings/config' document
+    unsubSettings = onSnapshot(doc(db, 'users', targetUserId, 'settings', 'config'), (snapshot) => {
         const isLocked = snapshot.exists() ? (snapshot.data().creationLocked === true) : false;
         
         const toggle = document.getElementById('creationLockToggle');
@@ -117,11 +280,11 @@ function initGlobalSettings() {
 }
 
 window.toggleCreationLock = async (checkbox) => {
+    if (!targetUserId) return;
     const isLocked = checkbox.checked;
     
     try {
-        // Firestore: Update document. setDoc with merge is safer if doc doesn't exist yet.
-        await setDoc(doc(db, 'settings', 'config'), { creationLocked: isLocked }, { merge: true });
+        await setDoc(doc(db, 'users', targetUserId, 'settings', 'config'), { creationLocked: isLocked }, { merge: true });
         
         const msg = isLocked ? "New Client Creation RESTRICTED" : "New Client Creation ENABLED";
         showToast(msg, isLocked ? 'error' : 'success'); 
@@ -133,15 +296,23 @@ window.toggleCreationLock = async (checkbox) => {
 
 // PROFILE SETTINGS LOGIC
 window.openProfileSettings = async () => {
+    if (!targetUserId) return;
+
     try {
-        // Firestore: Get document 'settings/profile'
-        const snap = await getDoc(doc(db, 'settings', 'profile'));
+        // Firestore: Get document for specific user's profile
+        const snap = await getDoc(doc(db, 'users', targetUserId, 'settings', 'profile'));
         if (snap.exists()) {
             const data = snap.val ? snap.val() : snap.data(); // Safety check
             document.getElementById('profLogoUrl').value = data.logoUrl || '';
             document.getElementById('profContact').value = data.contactPhone || '';
             document.getElementById('profAddress').value = data.address || '';
             document.getElementById('profMap').value = data.mapLink || '';
+        } else {
+            // clear out previous values if document doesn't exist
+            document.getElementById('profLogoUrl').value = '';
+            document.getElementById('profContact').value = '';
+            document.getElementById('profAddress').value = '';
+            document.getElementById('profMap').value = '';
         }
         document.getElementById('logoUploadStatus').innerText = '';
         profileModal.show();
@@ -151,6 +322,8 @@ window.openProfileSettings = async () => {
 };
 
 window.saveProfile = async () => {
+    if (!targetUserId) return;
+
     const profileData = {
         logoUrl: document.getElementById('profLogoUrl').value,
         contactPhone: document.getElementById('profContact').value,
@@ -160,8 +333,8 @@ window.saveProfile = async () => {
     };
 
     try {
-        // Firestore: Set document 'settings/profile'
-        await setDoc(doc(db, 'settings', 'profile'), profileData);
+        // Firestore: Set document for specific user's profile
+        await setDoc(doc(db, 'users', targetUserId, 'settings', 'profile'), profileData);
         showToast("Profile settings updated successfully!", "success");
         profileModal.hide();
     } catch (error) {
@@ -171,7 +344,7 @@ window.saveProfile = async () => {
 
 // R2 Logo Upload
 window.handleLogoUpload = async (input) => {
-    if (!input.files || !input.files[0]) return;
+    if (!input.files || !input.files[0] || !targetUserId) return;
     const file = input.files[0];
     const statusLabel = document.getElementById('logoUploadStatus');
     
@@ -179,9 +352,8 @@ window.handleLogoUpload = async (input) => {
     statusLabel.className = "text-info small mt-1";
 
     const formData = new FormData();
-    // Path: studio_assets/logo.png
     const ext = file.name.split('.').pop();
-    const path = `studio_assets/logo_${Date.now()}.${ext}`;
+    const path = `studio_assets/${targetUserId}/logo_${Date.now()}.${ext}`;
     
     formData.append("file", file);
     formData.append("path", path);
@@ -338,8 +510,8 @@ function renderGrid(keys, gPaid, gPending) {
                         
                         <div class="d-flex justify-content-between align-items-start mb-4">
                             <div>
-                                <div class="card-label">Client Name</div>
-                                <div class="fs-5 text-white fw-bold"><i class="bi bi-building me-2 text-primary"></i>${STUDIO_NAME}</div>
+                                <div class="card-label">Studio Name</div>
+                                <div class="fs-5 text-white fw-bold"><i class="bi bi-building me-2 text-primary"></i>${currentStudioName}</div>
                             </div>
                             <div class="text-end">
                                 <div class="card-label">Status</div>
@@ -414,14 +586,14 @@ window.handleLockToggle = (event, monthKey) => {
 };
 
 window.performLockUpdate = async () => {
-    if(!lockTarget.clientIds.length) return;
+    if(!lockTarget.clientIds.length || !targetUserId) return;
     
     try {
-        // Firestore: Batch Update
+        // Firestore: Batch Update targeting specific user's clients
         const batch = writeBatch(db);
         
         lockTarget.clientIds.forEach(id => {
-            const docRef = doc(db, 'clients', id);
+            const docRef = doc(db, 'users', targetUserId, 'clients', id);
             batch.update(docRef, { isLocked: lockTarget.isLocked });
         });
 
@@ -451,7 +623,6 @@ window.askBatchConfirm = (monthKey, status) => {
     const alreadyPaidLabel = document.getElementById('modalAlreadyPaid');
     const receivedInput = document.getElementById('modalReceivedInput');
     const paidInput = document.getElementById('modalPaidInput');
-    const balanceLabel = document.getElementById('modalBalance');
 
     if (status === 'paid') {
         paymentDiv.classList.remove('hidden');
@@ -479,7 +650,7 @@ window.askBatchConfirm = (monthKey, status) => {
     batchConfirmModal.show();
 };
 
-// NEW: Real-time calculation based on Received Amount
+// Real-time calculation based on Received Amount
 window.calculateTotal = () => {
     const receivedInput = document.getElementById('modalReceivedInput');
     const paidInput = document.getElementById('modalPaidInput');
@@ -505,18 +676,18 @@ window.calculateTotal = () => {
 };
 
 window.performBatchUpdate = async () => {
-    if(!batchTarget.clientIds.length) return;
+    if(!batchTarget.clientIds.length || !targetUserId) return;
     
     const timestamp = Date.now();
     const paidAmountStr = document.getElementById('modalPaidInput').value;
     const balanceStr = document.getElementById('modalBalance').innerText.replace('₹', '');
 
     try {
-        // Firestore: Batch Update
+        // Firestore: Batch Update targeting specific user's clients
         const batch = writeBatch(db);
 
         batchTarget.clientIds.forEach(id => {
-            const docRef = doc(db, 'clients', id);
+            const docRef = doc(db, 'users', targetUserId, 'clients', id);
             const updateData = { paymentStatus: batchTarget.status };
             
             if(batchTarget.status === 'paid') {
